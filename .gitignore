@@ -1,0 +1,22 @@
+# Julia build & cache
+*.jl.cov
+*.jl.mem
+*.ji
+Manifest.toml
+
+# VSCode settings
+.vscode/
+.venv/
+.julia/
+.ipynb_checkpoints/
+
+# Output folders
+results/
+plots/
+data/
+tmp/
+logs/
+
+# System files
+.DS_Store
+Thumbs.db
