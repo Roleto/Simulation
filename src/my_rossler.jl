@@ -17,20 +17,20 @@
 
 using LinearAlgebra
 using PyPlot
+using PDFmerger
+using Dates
 
-Adaptive = 1  #RFPT
-Robust = 1    #VSSM
+# Flags (lowercase)
+adaptive = 1  # RFPT
+robust = 1    # VSSM
+plotting = 1
 
-#################
-# Time variable #
-#################
-δt = 1e-3
-LONG = Int(2e4)
-l = LONG - 1
+# Time variables
+Δt = 1e-3
+N = Int(2e4)
+last_idx = N - 1
 
-#################
-# Control Parameters #
-#################
+# Control Parameters
 K = 1e2
 B = -1
 A = 1.97e-3
@@ -42,659 +42,307 @@ A = 1.97e-3
 K_VSSM = 50
 w = 1
 
-####################################
-# Parameters for Nominal Trajectory#
-####################################
-A₁ = 2
+# Nominal trajectory parameters
+A₁ = 2;
 ω₁ = 0.5
-A₂ = 3
+A₂ = 3;
 ω₂ = 0.7
-A₃ = 1
-ω₃ = 1
+A₃ = 1;
+ω₃ = 1.0
 
-##########################
-# Exact model parameters #
-##########################
+# Exact model parameters
 aₑ = 0.01
 bₑ = 0.2
 cₑ = 5.7
 
-############################
-# Approx. model parameters #
-############################
+# Approximate model parameters
 aₐ = 0.1
 bₐ = 0.3
 cₐ = 5.5
 
-function G_MIMO(past_input, past_response, desired, err_limit, K, B, A)
-	Amatr_h = (past_response - desired)
-	error_norm = norm(Amatr_h, 2)
-	if error_norm > err_limit
-		e_direction = Amatr_h / error_norm
-		B_factor = B * tanh(A * error_norm)
-		G = (1 + B_factor) * past_input + B_factor * K * e_direction
-	else
-		G = past_input
-	end
-	return G
-end
-
-ErrorMetric(hint, h) = Λ * hint + h
-
-function KinBlock(S, h, qN_p)
-	s = K * [tanh(S[1] / w), tanh(S[2] / w), tanh(S[3] / w)]
-	qn = qN_p * Λ
-	x = qn[1] * h[1] * s[1]
-	y = qn[2] * h[2] * s[2]
-	z = qn[3] * h[3] * s[3]
-	return [x, y, z]
-end
-
-
-
-time_mem = zeros(LONG)
-
-# Nominal Trajectory
-# qN = zeros(Float64, LONG, 3)
-# qN_p = zeros(Float64, LONG, 3)
-
-xN = zeros(LONG)
-xN_p = zeros(LONG)
-
-yN = zeros(LONG)
-yN_p = zeros(LONG)
-
-zN = zeros(LONG)
-zN_p = zeros(LONG)
-
-# Desired
-# qDes_p = zeros(Float64, LONG, 3)
-xDes_p = zeros(LONG)
-yDes_p = zeros(LONG)
-zDes_p = zeros(LONG)
-
-# Deformed
-# qDef_p = zeros(Float64, LONG, 3)
-xDef_p = zeros(LONG)
-yDef_p = zeros(LONG)
-zDef_p = zeros(LONG)
-
-
-# Control Signal
-# u = zeros(Float64, LONG, 3)
-u_x = zeros(LONG)
-u_y = zeros(LONG)
-u_z = zeros(LONG)
-
-# q_p = zeros(Float64, LONG, 3)
-x_p = zeros(LONG)
-y_p = zeros(LONG)
-z_p = zeros(LONG)
-
-# qA = zeros(Float64, LONG, 3)
-x = zeros(LONG)
-y = zeros(LONG)
-z = zeros(LONG)
-
-S_x = zeros(LONG)
-S_p_x = zeros(LONG)
-S_y = zeros(LONG)
-S_p_y = zeros(LONG)
-S_z = zeros(LONG)
-S_p_z = zeros(LONG)
-
-#initial conditions
-hint_x = 0
-hint_y = 0
-hint_z = 0
-
-past_input = zeros(3)
-past_response = zeros(3)
-past_responses = zeros(Float64, LONG, 3)
-
-# errors = zeros(Float64, LONG, 3)
 error_limit = 1e-3
 
-x[1] = A₁ * sin(ω₁ * δt)
-y[1] = A₂ * sin(ω₂ * δt)
-z[1] = A₃ * sin(ω₃ * δt)
-x_p[1] = A₁ * ω₁ * cos(ω₁ * δt)
-y_p[1] = A₂ * ω₂ * cos(ω₂ * δt)
-z_p[1] = A₃ * ω₃ * cos(ω₃ * δt)
-# x_pp[1] = -A₁ * ω₁^2 * sin(ω₁ * δt)
-# y_pp[1] = -A₂ * ω₂^2 * sin(ω₂ * δt)
-# z_pp[1] = -A₃ * ω₃^2 * sin(ω₃ * δt)
-
-println("Simulation started")
-for t ∈ 1:l
-	global hint_x
-	global hint_y
-	global hint_z
-	global past_input
-	global past_response
-	global error_limit
-
-	time_mem[t] = δt * t
-	#Nominal trajectory for the actual time frame
-	# qN[t, :] = [Amp[j] * sin(ω[j] * time_mem[t]) for j ∈ 1:3]
-	xN[t] = A₁ * sin(ω₁ * time_mem[t])
-	xN_p[t] = A₁ * ω₁ * cos(ω₁ * time_mem[t])
-
-	yN[t] = A₂ * sin(ω₂ * time_mem[t])
-	yN_p[t] = A₂ * ω₂ * cos(ω₂ * time_mem[t])
-
-	zN[t] = A₃ * sin(ω₃ * time_mem[t])
-	zN_p[t] = A₃ * ω₃ * cos(ω₃ * time_mem[t])
-
-	h_x = xN[t] - x[t]
-	h_y = yN[t] - y[t]
-	h_z = zN[t] - z[t]
-
-	if Robust == 1
-		S = ErrorMetric([hint_x, hint_y, hint_z], [h_x, h_y, h_z])
-
-		S_x[t] = S[1]
-		S_y[t] = S[2]
-		S_z[t] = S[3]
-
-		xDes_p[t] = xN_p[t] + Λ * h_x + K_VSSM * tanh(S_x[t] / w)
-		yDes_p[t] = yN_p[t] + Λ * h_y + K_VSSM * tanh(S_y[t] / w)
-		zDes_p[t] = zN_p[t] + Λ * h_z + K_VSSM * tanh(S_z[t] / w)
-
-
-		desired = [xDes_p[t], yDes_p[t], zDes_p[t]]
+# Adaptive deformation function
+function g_mimo(prev_input, prev_response, desired, err_limit, K, B, A)
+	Δ = (prev_response - desired)
+	nrm = norm(Δ)
+	if nrm > err_limit
+		dir = Δ / nrm
+		Bf = B * tanh(A * nrm)
+		return (1 + Bf) * prev_input + Bf * K * dir
 	else
-		xDes_p[t] = Λ^2 * hint_x + 2 * Λ * h_x + xN_p[t]
-		yDes_p[t] = Λ^2 * hint_y + 2 * Λ * h_y + yN_p[t]
-		zDes_p[t] = Λ^2 * hint_z + 2 * Λ * h_z + zN_p[t]
-
-		desired = [xDes_p[t], yDes_p[t], zDes_p[t]]
+		return prev_input
 	end
-
-	# Deformation
-	if Adaptive == 1 && t > 3
-		past_input = G_MIMO(past_input, past_response, desired, error_limit, K, B, A)
-	else
-		past_input = desired
-	end
-
-	xDef_p[t] = past_input[1]
-	yDef_p[t] = past_input[2]
-	zDef_p[t] = past_input[3]
-
-	#Control Signal                                                                                                                                      
-
-	u_x[t] = xDef_p[t] + y[t] + z[t]
-	u_y[t] = yDef_p[t] - x[t] - aₐ * y[t]
-	u_z[t] = zDef_p[t] - bₐ - z[t] * (x[t] - cₐ)
-
-	#modell
-	x_p[t] = -y[t] - z[t] + u_x[t]
-	y_p[t] = x[t] + aₑ * y[t] + u_y[t]
-	z_p[t] = bₑ + z[t] * (x[t] - cₑ) + u_z[t]
-
-	past_response = [x_p[t], y_p[t], z_p[t]]
-	past_responses[t, :] = past_response
-
-	#Integrals
-	x[t+1] = x[t] + δt * x_p[t]
-	y[t+1] = y[t] + δt * y_p[t]
-	z[t+1] = z[t] + δt * z_p[t]
-
-	hint_x = hint_x + δt * h_x
-	hint_y = hint_y + δt * h_y
-	hint_z = hint_z + δt * h_z
 end
-println("Simulation Ended")
-
-############
-# Plotting #
-############
-
-using PDFmerger
-
-
-##############################################
-# Nominal and Realized Trajectories Plotting #
-##############################################
-
-fig_caption = "nominal_realized_trajectories"
-fig = figure(fig_caption)
-title("Nominális és Megvalósult Pályák")
-subplot(311)
-ax1 = gca()
-grid1 = grid(true)
-ylabel("X [m]")
-plot(time_mem[1:l], xN[1:l], color = "#D55E00", linewidth = 1.5, label = "Nominális", alpha = 0.8)
-plot(time_mem[1:l], x[1:l], linestyle = "--", color = "#009E73", linewidth = 2.5, label = "Megvalósult", alpha = 0.8)
-
-subplot(312, sharex = ax1)
-ax2 = gca()
-grid(true)
-ylabel("Y [m]")
-plot(time_mem[1:l], yN[1:l], color = "#D55E00", linewidth = 1.5, label = "Nominális")
-plot(time_mem[1:l], y[1:l], linestyle = "--", color = "#009E73", linewidth = 2.5, label = "Megvalósult", alpha = 0.8)
-
-
-subplot(313, sharex = ax2)
-ax3 = gca()
-grid(true)
-xlabel("Idő [s]")
-ylabel("Z [m]")
-plot(time_mem[1:l], zN[1:l], color = "#D55E00", linewidth = 1.5, label = "Nominális")
-plot(time_mem[1:l], z[1:l], linestyle = "--", color = "#009E73", linewidth = 2.5, label = "Megvalósult", alpha = 0.8)
-
-legend(loc = "lower right", fancybox = "True")
-tight_layout()
-subplots_adjust(hspace = 0.2)
-fig[:canvas][:draw]()
-savefig("allplots_rossler.pdf")
-
-fig = figure("Trajectory_tracking_3D")
-title("Nominális és Megvalósult Pályák 3D")
-grid(true)
-plot3D(xN[1:l], yN[1:l], zN[1:l], color = "red", label = "Nominális")
-plot3D(x[1:l], y[1:l], z[1:l], color = "green", label = "Megvalósult", linestyle = "--")
-legend(loc = 1, borderaxespad = 0)
-
-#######################
-# Velocities Plotting #
-#######################
-fig_caption = "velocities"
-fig = figure(fig_caption)
-grid(true)
-title(L"$1^{st} Time Derivatives$")
-
-subplot(311)
-ax1 = gca()
-grid1 = grid(true)
-ylabel(L"$\dot{x}$")
-
-plot(time_mem[1:l], xN_p[1:l], color = "red", linewidth = 2, label = L"\dot{x}^{N}")
-plot(time_mem[1:l], past_responses[1:l, 1], color = "green", linewidth = 3, label = L"\dot{x}", linestyle = "--")
-
-subplot(312, sharex = ax1)
-ax2 = gca()
-grid(true)
-ylabel(L"$\dot{y}$")
-
-plot(time_mem[1:l], yN_p[1:l], color = "red", linewidth = 2, label = L"\dot{y}^{N}")
-plot(time_mem[1:l], past_responses[1:l, 2], color = "green", linewidth = 3, label = L"\dot{y}", linestyle = "--")
-
-subplot(313, sharex = ax2)
-ax3 = gca()
-grid(true)
-xlabel("t, [s]")
-ylabel(L"$\dot{z}$")
-plot(time_mem[1:l], zN_p[1:l], color = "red", linewidth = 2, label = "Nominális")
-plot(time_mem[1:l], past_responses[1:l, 3], color = "green", linewidth = 3, label = "Realized", linestyle = "--")
-legend(loc = "lower left", fancybox = "True")
-
-tight_layout()
-subplots_adjust(hspace = 0.0)
-fig[:canvas][:draw]()
-
-savefig("temp_rossler.pdf")
-append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
-
-
-#######################
-# Acceleration Plotting #
-#######################
-# fig_caption = "accelerations"
-# fig = figure(fig_caption)
-# grid(true)
-# title(L"$2^{st} Time Derivatives$")
-
-# subplot(311)
-# ax1 = gca()
-# grid1 = grid(true)
-# ylabel(L"$\ddot{x}$")
-
-# plot(time_mem[1:l], xN_pp[1:l], color = "red", linewidth = 2, label = L"\ddot{x}^{N}")
-# plot(time_mem[1:l], accelerations[1:l, 1], color = "green", linewidth = 3, label = L"\ddot{x}", linestyle = "--")
-
-# subplot(312, sharex = ax1)
-# ax2 = gca()
-# grid(true)
-# ylabel(L"$\dot{y}$")
-
-# plot(time_mem[1:l], yN_pp[1:l], color = "red", linewidth = 2, label = L"\ddot{y}^{N}")
-# plot(time_mem[1:l], accelerations[1:l, 2], color = "green", linewidth = 3, label = L"\ddot{y}", linestyle = "--")
-
-# subplot(313, sharex = ax2)
-# ax3 = gca()
-# grid(true)
-# xlabel("t, [s]")
-# ylabel(L"$\ddot{z}$")
-# plot(time_mem[1:l], zN_pp[1:l], color = "red", linewidth = 2, label = "Nominális")
-# plot(time_mem[1:l], accelerations[1:l, 3], color = "green", linewidth = 3, label = "Realized", linestyle = "--")
-# plot(time_mem[1:l], past_inputs_p[1:l, 3], color = "blue", label = "Desired", linestyle = "-.")
-# legend(loc = "lower left", fancybox = "True")
-
-# tight_layout()
-# subplots_adjust(hspace = 0.0)
-# fig[:canvas][:draw]()
-# savefig("temp_rossler.pdf")
-# append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
-
-
-# #######################
-# # Acceleration Plotting #
-# #######################
-# fig_caption = "accelerations"
-# fig = figure(fig_caption)
-# grid(true)
-# title(L"$2^{st} Time Derivatives$")
-
-# subplot(311)
-# ax1 = gca()
-# grid1 = grid(true)
-# ylabel(L"$\ddot{x}$")
-
-# plot(time_mem[1:l], xN_pp[1:l], color = "red", linewidth = 2, label = L"\ddot{x}^{N}")
-# plot(time_mem[1:l], accelerations[1:l, 1], color = "green", linewidth = 3, label = L"\ddot{x}", linestyle = "--")
-
-# subplot(312, sharex = ax1)
-# ax2 = gca()
-# grid(true)
-# ylabel(L"$\dot{y}$")
-
-# plot(time_mem[1:l], yN_pp[1:l], color = "red", linewidth = 2, label = L"\ddot{y}^{N}")
-# plot(time_mem[1:l], accelerations[1:l, 2], color = "green", linewidth = 3, label = L"\ddot{y}", linestyle = "--")
-
-# subplot(313, sharex = ax2)
-# ax3 = gca()
-# grid(true)
-# xlabel("t, [s]")
-# ylabel(L"$\ddot{z}$")
-# plot(time_mem[1:l], zN_pp[1:l], color = "red", linewidth = 2, label = "Nominális")
-# plot(time_mem[1:l], accelerations[1:l, 3], color = "green", linewidth = 3, label = "Realized", linestyle = "--")
-
-# legend(loc = "lower left", fancybox = "True")
-
-# tight_layout()
-# subplots_adjust(hspace = 0.0)
-# fig[:canvas][:draw]()
-# savefig("temp_rossler.pdf")
-# append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
-
-
-############################
-# Tracking Errors Plotting #
-############################
-
-fig_caption = "tracking_error"
-fig = figure(fig_caption)
-
-subplot(311)
-ax1 = gca()
-grid1 = grid(true)
-title("Követési Hibák az Idő Függvényében")
-ylabel("X [m]")
-
-plot(time_mem[1:l], xN[1:l] - x[1:l], color = "red", linewidth = 2)
-
-subplot(312, sharex = ax1)
-ax2 = gca()
-grid(true)
-ylabel("Y [m]")
-plot(time_mem[1:l], yN[1:l] - y[1:l], color = "red", linewidth = 2)
-
-subplot(313, sharex = ax2)
-ax3 = gca()
-grid(true)
-xlabel("Idő [s]")
-ylabel("Z [m]")
-plot(time_mem[1:l], zN[1:l] - z[1:l], color = "red", linewidth = 2)
-
-# legend(loc = "lower left", fancybox = "True")
-tight_layout()
-subplots_adjust(hspace = 0.190)
-fig[:canvas][:draw]()
-
-savefig("temp_rossler.pdf")
-append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
-
-###########################
-# Control signal Plotting #
-###########################
-
-fig_caption = "control_signal"
-figure(fig_caption)
-grid(true)
-title("Irányítójelek az Idő Függvényében")
-xlabel("Idő [s]")
-ylabel("Irányítójel [N]")
-
-plot(time_mem[1:l], u_x[1:l], color = "red", label = L"$u_x$")
-plot(time_mem[1:l], u_y[1:l], color = "green", label = L"$u_y$", linestyle = "--")
-plot(time_mem[1:l], u_z[1:l], color = "blue", label = L"$u_z$")
-
-legend(loc = "lower left", fancybox = "True")
-tight_layout()
-fig[:canvas][:draw]()
-savefig("temp_rossler.pdf")
-append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
-
-###############################
-# Phase Trajectories Plotting #
-###############################
-
-fig_caption = "phase_trajectories_x"
-figure(fig_caption)
-grid(true)
-title("Fázis tér X irányban")
-xlabel("Pozíció [m]")
-ylabel("Sebesség [m/s]")
-plot(xN[1:l], xN_p[1:l], color = "red", linewidth = 2, label = "Nominális")
-plot(x[1:l], x_p[1:l], color = "green", linestyle = "--", linewidth = 2.5, label = "Megvalósult")
-legend(loc = "lower left", fancybox = "True")
-tight_layout()
-
-savefig("temp_rossler.pdf")
-append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
-
-fig_caption = "phase_trajectories_y"
-figure(fig_caption)
-grid(true)
-title("Fázis tér Y irányban")
-xlabel("Pozíció [m]")
-ylabel("Sebesség [m/s]")
-plot(yN[1:l], yN_p[1:l], color = "red", linewidth = 2, label = "Nominális")
-plot(y[1:l], y_p[1:l], color = "green", linewidth = 2.75, linestyle = "--", label = "Megvalósult")
-legend(loc = "upper left", fancybox = "True")
-tight_layout()
-savefig("temp_rossler.pdf")
-append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
-
-fig_caption = "phase_trajectories_z"
-figure(fig_caption)
-grid(true)
-title("Fázis tér Z irányban")
-xlabel("Pozíció [m]")
-ylabel("Sebesség [m/s]")
-plot(zN[1:l], zN_p[1:l], color = "red", linewidth = 2, label = "Nominális")
-plot(z[1:l], z_p[1:l], color = "green", linewidth = 2.5, linestyle = "--", label = "Megvalósult")
-legend(loc = "upper left", fancybox = "True")
-tight_layout()
-
-savefig("temp_rossler.pdf")
-append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
-
-############
-# Log file #
-############
-using Dates
-
-date_string = Dates.format(now(), "mm-dd_HH-MM")
-fileName = "./Plots/Rossler/" * date_string * ".pdf"
-mv("allplots_rossler.pdf", fileName)
-file = open("./Plots/Rossler/log.txt", "a")
-line_breaker = "\n####################################################\n"
-
-file_text = string(line_breaker, date_string, " Következö paraméterekkel volt használva:\nControl Params:\n",
-	"K= ", K, "\tB= ", B, "\tA= ", A, "\tw= ", w, "\tΛ= ", Λ,
-	"\nApproximate Model Parameters:\naₐ=", aₐ, "\tbₐ=", bₐ, "\tcₐ=", cₐ,
-	"\nTime variable :\nδt=", δt, "\t=LONG", LONG, "\n",
-	"\nExact Model Parameters:\naₑ=", aₑ, "\tbₑ=", bₑ, "\tcₑ=", cₑ,
-	"\nNominal Trajectory Parameters:\nω=", [ω₁, ω₂, ω₃], "\nAmp=", [A₁, A₂, A₃], line_breaker)
-write(file, file_text)
-close(file)
-
-
-# fig_caption = "nominal_realized_trajectories"
-# fig = figure(fig_caption)
-# grid("True")
-# title("Nominal and Realized Trajectories")
-
-# subplot(311)
-# ax1 = gca()
-# grid1 = grid("True")
-# ylabel(L"x")
-# plot(time_mem[3:LONG-1], qN[3:LONG-1, 1], color = "red", linewidth = 2, label = "Nominális")
-# plot(time_mem[3:LONG-1], qA[3:LONG-1, 1], color = "green", linewidth = 2.5, label = "Megvalósult", linestyle = "--")
-# plot(time_mem[3:LONG-1], qA_pid[3:LONG-1, 1], color = "blue", label = "Realized Non-adaptive", linestyle = "-.")
-
-# subplot(312, sharex = ax1)
-# ax2 = gca()
-# grid("True")
-# ylabel(L"y")
-# plot(time_mem[3:LONG-1], qN[3:LONG-1, 2], color = "red", linewidth = 2, label = "Nominális")
-# plot(time_mem[3:LONG-1], qA[3:LONG-1, 2], color = "green", linewidth = 2.5, label = "Megvalósult", linestyle = "--")
-# plot(time_mem[3:LONG-1], qA_pid[3:LONG-1, 2], color = "blue", label = "Realized Non-adaptive", linestyle = "-.")
-
-# subplot(313, sharex = ax2)
-# ax3 = gca()
-# grid("True")
-# xlabel(L"t, [$s$]")
-# ylabel(L"z")
-# plot(time_mem[3:LONG-1], qN[3:LONG-1, 3], color = "red", linewidth = 2, label = "Nominális")
-# plot(time_mem[3:LONG-1], qA[3:LONG-1, 3], color = "green", linewidth = 2.5, label = "Megvalósult", linestyle = "--")
-# plot(time_mem[3:LONG-1], qA_pid[3:LONG-1, 3], color = "blue", label = "Realized Non-adaptive", linestyle = "-.")
-
-# legend()
-# tight_layout()
-# subplots_adjust(hspace = 0.0)
-# fig[:canvas][:draw]()
-# savefig("allplots.pdf")
-
-# fig_caption = "tracking_error"
-# fig = figure(fig_caption)
-# grid("True")
-# title("Tracking Errors vs Time")
-
-# subplot(311)
-# ax1 = gca()
-# grid1 = grid("True")
-# ylabel(L"$x^N-x$")
-# plot(time_mem[3:LONG-1], errors[3:LONG-1, 1], color = "red", linewidth = 2, label = "Adaptive")
-# plot(time_mem[3:LONG-1], errors_pid[3:LONG-1, 1], color = "green", linewidth = 2.5, linestyle = "--", label = "Non-adaptive")
-
-# subplot(312, sharex = ax1)
-# ax2 = gca()
-# grid("True")
-# ylabel(L"$y^N-y$")
-# plot(time_mem[3:LONG-1], errors[3:LONG-1, 2], color = "red", linewidth = 2, label = "Adaptive")
-# plot(time_mem[3:LONG-1], errors_pid[3:LONG-1, 2], color = "green", linewidth = 2.5, linestyle = "--", label = "Non-adaptive")
-
-# subplot(313, sharex = ax2)
-# ax3 = gca()
-# grid("True")
-# xlabel(L"t, [$s$]")
-# ylabel(L"$z^N-z$")
-# plot(time_mem[3:LONG-1], errors[3:LONG-1, 3], color = "red", linewidth = 2, label = "Adaptive")
-# plot(time_mem[3:LONG-1], errors_pid[3:LONG-1, 3], color = "green", linewidth = 2.5, linestyle = "--", label = "Non-adaptive")
-
-# legend()
-# tight_layout()
-# subplots_adjust(hspace = 0.190)
-# fig[:canvas][:draw]()
-
-# fig_caption = "phase_trajectories_x"
-# figure(fig_caption)
-# grid("True")
-# title("Phase Trajectories")
-# xlabel(L"x")
-# ylabel(L"$\dot{x}$")
-# plot(qN[3:LONG-1, 1], qN_p[3:LONG-1, 1], color = "red", linewidth = 2, label = "Nominális")
-# plot(qA[3:LONG-1, 1], past_responses[3:LONG-1, 1], color = "green", linewidth = 2.5, linestyle = "--", label = "Megvalósult")
-# legend(loc = "lower left", fancybox = "True")
-# tight_layout()
-
-# savefig("temp.pdf")
-# append_pdf!("allplots.pdf", "temp.pdf", cleanup = true)
-
-# fig_caption = "phase_trajectories_y"
-# figure(fig_caption)
-# grid("True")
-# title("Phase Trajectories")
-# xlabel(L"y")
-# ylabel(L"$\dot{y}$")
-# plot(qN[3:LONG-1, 2], qN_p[3:LONG-1, 2], color = "red", linewidth = 2, label = "Nominális")
-# plot(qA[3:LONG-1, 2], past_responses[3:LONG-1, 2], color = "green", linewidth = 2.5, linestyle = "--", label = "Megvalósult")
-# legend(loc = "upper left", fancybox = "True")
-# tight_layout()
-
-# fig_caption = "phase_trajectories_z"
-# figure(fig_caption)
-# grid("True")
-# title("Phase Trajectories")
-# xlabel(L"z")
-# ylabel(L"$\dot{z}$")
-# plot(qN[3:LONG-1, 3], qN_p[3:LONG-1, 3], color = "red", linewidth = 2, label = "Nominális")
-# plot(qA[3:LONG-1, 3], past_responses[3:LONG-1, 3], color = "green", linewidth = 2.5, linestyle = "--", label = "Megvalósult")
-# legend(loc = "upper left", fancybox = "True")
-# tight_layout()
-
-# fig_caption = "control_signal"
-# figure(fig_caption)
-# grid("True")
-# title("Control Signals vs Time")
-# xlabel(L"t, $[s]$")
-# ylabel(L"u")
-# plot(time_mem[3:LONG-1], u[3:LONG-1, 1], color = "red", label = L"$u_1$")
-# plot(time_mem[3:LONG-1], u[3:LONG-1, 2], color = "green", label = L"$u_1$")
-# plot(time_mem[3:LONG-1], u[3:LONG-1, 3], color = "blue", label = L"$u_3$")
-# legend(loc = "lower left", fancybox = "True")
-# tight_layout()
-
-
-# fig_caption = "velocities"
-# fig = figure(fig_caption)
-# grid("True")
-# title(L"$1^{st} Time Derivatives$")
-
-# subplot(311)
-# ax1 = gca()
-# grid1 = grid("True")
-# ylabel(L"$\dot{x}$")
-# plot(time_mem[3:LONG-1], qN_p[3:LONG-1, 1], color = "red", linewidth = 2, label = L"\dot{x}^{N}")
-# plot(time_mem[3:LONG-1], past_responses[3:LONG-1, 1], color = "green", linewidth = 3, label = L"\dot{x}", linestyle = "--")
-# plot(time_mem[3:LONG-1], past_inputs[3:LONG-1, 1], color = "blue", label = L"\dot{x}^{Des}", linestyle = "-.")
-
-# subplot(312, sharex = ax1)
-# ax2 = gca()
-# grid("True")
-# ylabel(L"$\dot{y}$")
-# plot(time_mem[3:LONG-1], qN_p[3:LONG-1, 2], color = "red", linewidth = 2, label = L"\dot{y}^{N}")
-# plot(time_mem[3:LONG-1], past_responses[3:LONG-1, 2], color = "green", linewidth = 3, label = L"\dot{y}", linestyle = "--")
-# plot(time_mem[3:LONG-1], past_inputs[3:LONG-1, 2], color = "blue", label = L"\dot{y}^{Des}", linestyle = "-.")
-
-# subplot(313, sharex = ax2)
-# ax3 = gca()
-# grid("True")
-# xlabel("t, [s]")
-# ylabel(L"$\dot{z}$")
-# plot(time_mem[3:LONG-1], qN_p[3:LONG-1, 3], color = "red", linewidth = 2, label = "Nominális")
-# plot(time_mem[3:LONG-1], past_responses[3:LONG-1, 3], color = "green", linewidth = 3, label = "Realized", linestyle = "--")
-# plot(time_mem[3:LONG-1], past_inputs[3:LONG-1, 3], color = "blue", label = "Desired", linestyle = "-.")
-# legend(loc = "lower left", fancybox = "True")
-
-# tight_layout()
-# subplots_adjust(hspace = 0.0)
-# fig[:canvas][:draw]()
-
-show()
+
+# Robust error metric (integral + position error)
+error_metric(h_int, h) = Λ * h_int + h
+
+# Kinematic block mapping desired velocities (first derivative version used in original)
+function kin_block(S, h, q_nom_vel)
+	s_vec = K * tanh.(S ./ w)
+	qλ = q_nom_vel * Λ
+	return [qλ[1] * h[1] * s_vec[1], qλ[2] * h[2] * s_vec[2], qλ[3] * h[3] * s_vec[3]]
+end
+
+function rossler_single_run()
+	# Allocate arrays
+	time_mem = zeros(N)
+	x_pos = zeros(N);
+	y_pos = zeros(N);
+	z_pos = zeros(N)
+	x_vel = zeros(N);
+	y_vel = zeros(N);
+	z_vel = zeros(N)
+	# nominal
+	x_nom_pos = zeros(N);
+	y_nom_pos = zeros(N);
+	z_nom_pos = zeros(N)
+	x_nom_vel = zeros(N);
+	y_nom_vel = zeros(N);
+	z_nom_vel = zeros(N)
+	# desired & deformed velocities
+	x_des_vel = zeros(N);
+	y_des_vel = zeros(N);
+	z_des_vel = zeros(N)
+	x_def_vel = zeros(N);
+	y_def_vel = zeros(N);
+	z_def_vel = zeros(N)
+	# control signals
+	u_ctrl_x = zeros(N);
+	u_ctrl_y = zeros(N);
+	u_ctrl_z = zeros(N)
+	# sliding variables
+	S_x = zeros(N);
+	S_y = zeros(N);
+	S_z = zeros(N)
+	# integral errors
+	h_int_x = 0.0;
+	h_int_y = 0.0;
+	h_int_z = 0.0
+
+	# initial conditions from nominal at Δt
+	x_pos[1] = A₁ * sin(ω₁ * Δt);
+	y_pos[1] = A₂ * sin(ω₂ * Δt);
+	z_pos[1] = A₃ * sin(ω₃ * Δt)
+	x_vel[1] = A₁ * ω₁ * cos(ω₁ * Δt);
+	y_vel[1] = A₂ * ω₂ * cos(ω₂ * Δt);
+	z_vel[1] = A₃ * ω₃ * cos(ω₃ * Δt)
+
+	past_input = zeros(3);
+	past_response = zeros(3)
+
+	for t in 1:last_idx
+		time_mem[t] = Δt * t
+		# nominal trajectory
+		x_nom_pos[t] = A₁ * sin(ω₁ * time_mem[t]);
+		x_nom_vel[t] = A₁ * ω₁ * cos(ω₁ * time_mem[t])
+		y_nom_pos[t] = A₂ * sin(ω₂ * time_mem[t]);
+		y_nom_vel[t] = A₂ * ω₂ * cos(ω₂ * time_mem[t])
+		z_nom_pos[t] = A₃ * sin(ω₃ * time_mem[t]);
+		z_nom_vel[t] = A₃ * ω₃ * cos(ω₃ * time_mem[t])
+		# errors
+		h_x = x_nom_pos[t] - x_pos[t]
+		h_y = y_nom_pos[t] - y_pos[t]
+		h_z = z_nom_pos[t] - z_pos[t]
+		# desired velocity
+		if robust == 1
+			S_vec = error_metric([h_int_x, h_int_y, h_int_z], [h_x, h_y, h_z])
+			S_x[t] = S_vec[1];
+			S_y[t] = S_vec[2];
+			S_z[t] = S_vec[3]
+			x_des_vel[t] = x_nom_vel[t] + Λ * h_x + K_VSSM * tanh(S_x[t] / w)
+			y_des_vel[t] = y_nom_vel[t] + Λ * h_y + K_VSSM * tanh(S_y[t] / w)
+			z_des_vel[t] = z_nom_vel[t] + Λ * h_z + K_VSSM * tanh(S_z[t] / w)
+		else
+			x_des_vel[t] = x_nom_vel[t] + Λ^2 * h_int_x + 2 * Λ * h_x
+			y_des_vel[t] = y_nom_vel[t] + Λ^2 * h_int_y + 2 * Λ * h_y
+			z_des_vel[t] = z_nom_vel[t] + Λ^2 * h_int_z + 2 * Λ * h_z
+		end
+		desired = [x_des_vel[t], y_des_vel[t], z_des_vel[t]]
+		# deformation
+		if adaptive == 1 && t > 3
+			past_input = g_mimo(past_input, past_response, desired, error_limit, K, B, A)
+		else
+			past_input = desired
+		end
+		x_def_vel[t] = past_input[1];
+		y_def_vel[t] = past_input[2];
+		z_def_vel[t] = past_input[3]
+		# control signals (approximate inverse of model)
+		u_ctrl_x[t] = x_def_vel[t] + y_pos[t] + z_pos[t]
+		u_ctrl_y[t] = y_def_vel[t] - x_pos[t] - aₐ * y_pos[t]
+		u_ctrl_z[t] = z_def_vel[t] - bₐ - z_pos[t] * (x_pos[t] - cₐ)
+		# system dynamics (exact parameters)
+		x_vel[t] = -y_pos[t] - z_pos[t] + u_ctrl_x[t]
+		y_vel[t] = x_pos[t] + aₑ * y_pos[t] + u_ctrl_y[t]
+		z_vel[t] = bₑ + z_pos[t] * (x_pos[t] - cₑ) + u_ctrl_z[t]
+		past_response = [x_vel[t], y_vel[t], z_vel[t]]
+		# integrate
+		x_pos[t+1] = x_pos[t] + Δt * x_vel[t]
+		y_pos[t+1] = y_pos[t] + Δt * y_vel[t]
+		z_pos[t+1] = z_pos[t] + Δt * z_vel[t]
+		# update integrals
+		h_int_x += Δt * h_x;
+		h_int_y += Δt * h_y;
+		h_int_z += Δt * h_z
+	end
+	# Plotting
+	fig = figure("nominal_realized_trajectories")
+	title("Nominális és Megvalósult Pályák")
+	subplot(311);
+	ylabel("X [m]");
+	grid(true)
+	plot(time_mem[1:last_idx], x_nom_pos[1:last_idx], color = "#D55E00", linewidth = 1.5, label = "Nominális")
+	plot(time_mem[1:last_idx], x_pos[1:last_idx], color = "#009E73", linestyle = "--", linewidth = 2.5, label = "Megvalósult")
+	subplot(312);
+	ylabel("Y [m]");
+	grid(true)
+	plot(time_mem[1:last_idx], y_nom_pos[1:last_idx], color = "#D55E00", linewidth = 1.5, label = "Nominális")
+	plot(time_mem[1:last_idx], y_pos[1:last_idx], color = "#009E73", linestyle = "--", linewidth = 2.5, label = "Megvalósult")
+	subplot(313);
+	ylabel("Z [m]");
+	xlabel("Idő [s]");
+	grid(true)
+	plot(time_mem[1:last_idx], z_nom_pos[1:last_idx], color = "#D55E00", linewidth = 1.5, label = "Nominális")
+	plot(time_mem[1:last_idx], z_pos[1:last_idx], color = "#009E73", linestyle = "--", linewidth = 2.5, label = "Megvalósult")
+	legend(loc = "lower right")
+	tight_layout();
+	savefig("allplots_rossler.pdf")
+
+	fig = figure("Trajectory_tracking_3D");
+	title("Nominális és Megvalósult Pályák 3D");
+	grid(true)
+	plot3D(x_nom_pos[1:last_idx], y_nom_pos[1:last_idx], z_nom_pos[1:last_idx], color = "red", label = "Nominális")
+	plot3D(x_pos[1:last_idx], y_pos[1:last_idx], z_pos[1:last_idx], color = "green", linestyle = "--", label = "Megvalósult")
+	legend(loc = 1)
+
+	# velocities
+	fig = figure("velocities");
+	title("Sebességek");
+	grid(true)
+	subplot(311);
+	ylabel("X [m/s]");
+	grid(true)
+	plot(time_mem[1:last_idx], x_nom_vel[1:last_idx], color = "red", linewidth = 2, label = "Nominális")
+	plot(time_mem[1:last_idx], x_vel[1:last_idx], color = "green", linewidth = 3, linestyle = "--", label = "Megvalósult")
+	subplot(312);
+	ylabel("Y [m/s]");
+	grid(true)
+	plot(time_mem[1:last_idx], y_nom_vel[1:last_idx], color = "red", linewidth = 2, label = "Nominális")
+	plot(time_mem[1:last_idx], y_vel[1:last_idx], color = "green", linewidth = 3, linestyle = "--", label = "Megvalósult")
+	subplot(313);
+	ylabel("Z [m/s]");
+	xlabel("Idő [s]");
+	grid(true)
+	plot(time_mem[1:last_idx], z_nom_vel[1:last_idx], color = "red", linewidth = 2, label = "Nominális")
+	plot(time_mem[1:last_idx], z_vel[1:last_idx], color = "green", linewidth = 3, linestyle = "--", label = "Megvalósult")
+	legend(loc = "lower left");
+	tight_layout();
+	savefig("temp_rossler.pdf");
+	append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
+
+	# tracking error
+	fig = figure("tracking_error");
+	title("Követési Hibák");
+	grid(true)
+	subplot(311);
+	ylabel("X [m]");
+	grid(true);
+	plot(time_mem[1:last_idx], x_nom_pos[1:last_idx] - x_pos[1:last_idx], color = "red")
+	subplot(312);
+	ylabel("Y [m]");
+	grid(true);
+	plot(time_mem[1:last_idx], y_nom_pos[1:last_idx] - y_pos[1:last_idx], color = "red")
+	subplot(313);
+	ylabel("Z [m]");
+	xlabel("Idő [s]");
+	grid(true);
+	plot(time_mem[1:last_idx], z_nom_pos[1:last_idx] - z_pos[1:last_idx], color = "red")
+	tight_layout();
+	savefig("temp_rossler.pdf");
+	append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
+
+	# control signals
+	fig = figure("control_signal");
+	title("Irányítójelek");
+	grid(true)
+	xlabel("Idő [s]");
+	ylabel("Irányítójel [N]")
+	plot(time_mem[1:last_idx], u_ctrl_x[1:last_idx], color = "red", label = "u_x")
+	plot(time_mem[1:last_idx], u_ctrl_y[1:last_idx], color = "green", linestyle = "--", label = "u_y")
+	plot(time_mem[1:last_idx], u_ctrl_z[1:last_idx], color = "blue", label = "u_z")
+	legend(loc = "lower left");
+	tight_layout();
+	savefig("temp_rossler.pdf");
+	append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
+
+	# phase plots
+	fig = figure("phase_x");
+	title("Fázistér X");
+	grid(true);
+	xlabel("Pozíció [m]");
+	ylabel("Sebesség [m/s]")
+	plot(x_nom_pos[1:last_idx], x_nom_vel[1:last_idx], color = "red", label = "Nominális")
+	plot(x_pos[1:last_idx], x_vel[1:last_idx], color = "green", linestyle = "--", label = "Megvalósult")
+	legend();
+	tight_layout();
+	savefig("temp_rossler.pdf");
+	append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
+
+	fig = figure("phase_y");
+	title("Fázistér Y");
+	grid(true);
+	xlabel("Pozíció [m]");
+	ylabel("Sebesség [m/s]")
+	plot(y_nom_pos[1:last_idx], y_nom_vel[1:last_idx], color = "red", label = "Nominális")
+	plot(y_pos[1:last_idx], y_vel[1:last_idx], color = "green", linestyle = "--", label = "Megvalósult")
+	legend();
+	tight_layout();
+	savefig("temp_rossler.pdf");
+	append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
+
+	fig = figure("phase_z");
+	title("Fázistér Z");
+	grid(true);
+	xlabel("Pozíció [m]");
+	ylabel("Sebesség [m/s]")
+	plot(z_nom_pos[1:last_idx], z_nom_vel[1:last_idx], color = "red", label = "Nominális")
+	plot(z_pos[1:last_idx], z_vel[1:last_idx], color = "green", linestyle = "--", label = "Megvalósult")
+	legend();
+	tight_layout();
+	savefig("temp_rossler.pdf");
+	append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
+
+	date_string = Dates.format(now(), "mm-dd_HH-MM")
+	fileName = "./data/Rossler/" * date_string * ".pdf"
+	mv("allplots_rossler.pdf", fileName)
+	return (x_pos = x_pos, y_pos = y_pos, z_pos = z_pos, x_vel = x_vel, y_vel = y_vel, z_vel = z_vel,
+		x_nom_pos = x_nom_pos, y_nom_pos = y_nom_pos, z_nom_pos = z_nom_pos)
+end
+
+function log()
+	file = open("./data/Rossler/log.txt", "a")
+	date_string = Dates.format(now(), "mm-dd_HH-MM")
+	line_breaker = "\n####################################################\n"
+	file_text = string(line_breaker, date_string, " Parameters:\nControl:\nK=", K, "\tB=", B, "\tA=", A, "\tw=", w, "\tΛ=", Λ,
+		"\nApproximate Model Parameters:\naₐ=", aₐ, "\tbₐ=", bₐ, "\tcₐ=", cₐ,
+		"\nExact Model Parameters:\naₑ=", aₑ, "\tbₑ=", bₑ, "\tcₑ=", cₑ,
+		"\nNominal Trajectory Parameters:\nω=[", ω₁, ",", ω₂, ",", ω₃, "] Amp=[", A₁, ",", A₂, ",", A₃, "]",
+		line_breaker)
+	write(file, file_text);
+	close(file)
+end
+
+function simulate_rossler()
+	res = rossler_single_run()
+	log()
+	if plotting == 1
+		show()
+	end
+	return res
+end
+
+
 
 

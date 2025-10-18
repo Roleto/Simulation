@@ -1,17 +1,16 @@
 ####################################################
 # Van der Pol Oscillator Controlled by RFPT o VSSM #
 ####################################################
-Adaptive = 1
-Robust = 1
-Ploting = 1
-SingleRun = 1
+adaptive = 1
+robust = 1
+plotting = 1  # formerly Ploting
 
 #########
 # Time  #
 #########
 δt = 1e-3
-LONG = Int(2e4)
-l = LONG - 1
+N = Int(2e4)
+last_idx = N - 1
 
 ######################
 # Control Parameters #
@@ -30,8 +29,8 @@ K_VSSM = 500
 ####################################
 # Parameters for Nominal Trajectory#
 ####################################
-ω = 0.5
-Amp = 2
+ω_nom = 0.5
+Amp_nom = 2
 
 ##########################
 # Exact Model Parameters #
@@ -52,95 +51,91 @@ mₐ = 0.8
 λₐ = 0.09
 ll = 0.015
 
-ErrorMetrics(h_int, h, h_p) = Λ^2 * h_int + 2 * Λ * h + h_p
-KinBlock(S, h, h_p, qN_pp) = K * tanh(S / w) + Λ^2 * h + 2 * Λ * h_p + qN_pp
+error_metric(h_int, h, h_p) = Λ^2 * h_int + 2 * Λ * h + h_p
+kin_block(S, h, h_p, q_nom_acc) = K * tanh(S / w) + Λ^2 * h + 2 * Λ * h_p + q_nom_acc
 
-function Exact(u, q, q_p)
-	q_pp = (u + μₑ * (1 - q^2) * q_p - ωₑ^2 * q - αₑ * q^3 - λₑ * q^5) / mₑ
-	return q_pp
+function exact_acc(u_ctrl, q_pos, q_vel)
+	q_acc = (u_ctrl + μₑ * (1 - q_pos^2) * q_vel - ωₑ^2 * q_pos - αₑ * q_pos^3 - λₑ * q_pos^5) / mₑ
+	return q_acc
 end
 
-# function Approx(q, q_p, q_pp)
-function Approx(q_pp)
-	u = mₐ * q_pp# - μₐ * (1 - q^2) * q_p + ωₐ^2 * q + αₐ * q^3 + λₐ * q^5
-	return u * ll
+# Approximate inverse (kept minimal per original intent)
+function approx_ctrl(q_acc)
+	u_ctrl = mₐ * q_acc  # simplified (nonlinear terms omitted as in original)
+	return u_ctrl * ll
 end
 
-function sigmoid(x)
-	s = x / (1 + abs(x))
-	return s
-end
-
-function G(past_input, past_response, xDnow)
-	out = (K + past_input) * (1 + B * tanh(A * (past_response - xDnow))) - K
+function adapt_g(past_input, past_response, desired_now)
+	out = (K + past_input) * (1 + B * tanh(A * (past_response - desired_now))) - K
 	return out
 end
 
-function nominalTraj(t)
-	qN = Amp * sin(ω * t * δt)
-	q_pN = ω * Amp * cos(ω * t * δt)
-	q_ppN = -Amp * ω^2 * sin(ω * t * δt)
-	return [qN, q_pN, q_ppN]
+function vanderpol_nominal_traj(t)
+	q_nom_pos = Amp_nom * sin(ω_nom * t * Δt)
+	q_nom_vel = ω_nom * Amp_nom * cos(ω_nom * t * Δt)
+	q_nom_acc = -Amp_nom * ω_nom^2 * sin(ω_nom * t * Δt)
+	return q_nom_pos, q_nom_vel, q_nom_acc
 end
 function log()
-	file = open("./Plots/Vanderpool/log.txt", "a")
+	file = open("./data/VanDerPol/log.txt", "a")
 	line_breaker = "\n####################################################\n"
-	isAdaptiv = Bool(1 == Adaptive)
-	isRobust = Bool(1 == Robust)
 	date_string = Dates.format(now(), "mm-dd_HH-MM")
-	file_text = string(line_breaker, date_string, "Kezdőértékek: q0=", q_mem[1], "q_p0=", q_p_mem[1], "q_pp0=", q_pp_mem[1],
-		"\n Következö paraméterekkel volt használva:
-		\nAdaptiv=", isAdaptiv, "Robust=", isRobust, "\nControl Params:\n",
-		"K= ", K, "\tB= ", B, "\tA= ", A, "\tw= ", w, "\tΛ= ", Λ,
-		"\nTime variable :\nδt=", δt, "\t=LONG", LONG, "\n",
+	file_text = string(line_breaker, date_string,
+		" Initial: q0=", q_pos[1], " q_p0=", q_vel[1], " q_pp0=", q_acc[1],
+		"\n Parameters:\nadaptive=", Bool(adaptive==1), " robust=", Bool(robust==1), "\nControl Params:\n",
+		"K=", K, "\tB=", B, "\tA=", A, "\tw=", w, "\tΛ=", Λ,
+		"\nTime:\nΔt=", Δt, "\tN=", N, "\n",
 		"\nApproximate Model Parameters:\nμₐ=", μₐ, "\tωₐ=", ωₐ, "\tαₐ=", αₐ, "\tλₐ=", λₐ, "\tmₐ=", mₐ, "\tll=", ll,
 		"\nExact Model Parameters:\nμₑ=", μₑ, "\tωₑ=", ωₑ, "\tαₑ=", αₑ, "\tλₑ=", λₑ, "\tmₑ=", mₑ,
-		"\nNominal Trajectory Parameters:\nω=", ω, "\tAmp=", Amp, line_breaker)
+		"\nNominal Trajectory Parameters:\nω_nom=", ω_nom, "\tAmp_nom=", Amp_nom, line_breaker)
 	write(file, file_text)
 	close(file)
 end
-function singlerun(h_int, q, q_p, q_pp, qN_p, qN_pp, u, idx, lastPlot = true)
-	print('.')
-	if (Ploting == 1 && SingleRun == 0 && lastPlot)
-		close("all")
-	end
-	for t ∈ 1:l
-		time_mem[t] = t * δt
 
-		#define the nominal trajectory
-		(qN_mem[t], qN_p[t], qN_pp[t]) = nominalTraj(t)
-
-		#Compute the Error
-		h = qN_mem[t] - q[t]
-		h_p = qN_p[t] - q_p[t]
-
-		#the kinematic block
-		if Robust == 1
-			S = Λ^2 * h_int + 2 * Λ * h + h_p
-			qDes_pp_mem[t] = KinBlock(S, h, h_p, qN_pp[t])
-			# K_VSSM * tanh(S / w) + Λ^2 * h + 2 * Λ * h_p + qN_pp[i]
+function vanderpol_single_run()
+	# allocate
+	time_mem = zeros(N)
+	q_pos = zeros(N)
+	q_vel = zeros(N)
+	q_acc = zeros(N)
+	q_nom_pos = zeros(N)
+	q_nom_vel = zeros(N)
+	q_nom_acc = zeros(N)
+	q_des_acc = zeros(N)
+	q_def_acc = zeros(N)
+	u_ctrl = zeros(N)
+	q_err_int = 0.0
+	# initial conditions from nominal at first step
+	q_pos[1] = Amp_nom * sin(ω_nom * Δt)
+	q_vel[1] = Amp_nom * ω_nom * cos(ω_nom * Δt)
+	q_acc[1] = -Amp_nom * ω_nom^2 * sin(ω_nom * Δt)
+	for t in 1:last_idx
+		time_mem[t] = t * Δt
+		(q_nom_pos[t], q_nom_vel[t], q_nom_acc[t]) = vanderpol_nominal_traj(t)
+		# errors
+		q_err_pos = q_nom_pos[t] - q_pos[t]
+		q_err_vel = q_nom_vel[t] - q_vel[t]
+		# desired acceleration via robust or non-robust law
+		if robust == 1
+			S = Λ^2 * q_err_int + 2 * Λ * q_err_pos + q_err_vel
+			q_des_acc[t] = kin_block(S, q_err_pos, q_err_vel, q_nom_acc[t])
 		else
-			qDes_pp_mem[t] = qN_pp[t] + Λ^3 * h_int + 3 * Λ^2 * h + 3 * Λ * h_p
+			q_des_acc[t] = q_nom_acc[t] + Λ^3 * q_err_int + 3 * Λ^2 * q_err_pos + 3 * Λ * q_err_vel
 		end
-
-		#Deformation
-		if Adaptive == 1 && t > 10
-			qDef_pp[t] = G(qDef_pp[t-1], q_pp[t-1], qDes_pp_mem[t])
+		# adaptive deformation
+		if adaptive == 1 && t > 10
+			q_def_acc[t] = adapt_g(q_def_acc[t-1], q_acc[t-1], q_des_acc[t])
 		else
-			qDef_pp[t] = qDes_pp_mem[t]
+			q_def_acc[t] = q_des_acc[t]
 		end
-
-		#Compute control signal
-		u[t] = Approx(qDef_pp[t])
-
-		# Compute the exact systems's respons
-		q_pp[t] = Exact(u[t], q[t], q_p[t])
-
-		#Integrate back with Euler's method
-		q_p[t+1] = q_p[t] + δt * q_pp[t]
-		q[t+1] = q[t] + δt * q_p[t]
-		q_mem[t] = q[t]
-		h_int = h_int + δt * h
+		# control
+		u_ctrl[t] = approx_ctrl(q_def_acc[t])
+		# exact system response
+		q_acc[t] = exact_acc(u_ctrl[t], q_pos[t], q_vel[t])
+		# integrate
+		q_vel[t+1] = q_vel[t] + Δt * q_acc[t]
+		q_pos[t+1] = q_pos[t] + Δt * q_vel[t]
+		q_err_int += Δt * q_err_pos
 	end
 	# Plotting 
 
@@ -149,8 +144,8 @@ function singlerun(h_int, q, q_p, q_pp, qN_p, qN_pp, u, idx, lastPlot = true)
 	title("Pályakövetés az idő függvényében")
 	xlabel("Idő [s]")
 	ylabel("Pozíció [m]")
-	plot(time_mem[1:l], qN_mem[1:l], color = "red", label = "Nominális")
-	plot(time_mem[1:l], q_mem[1:l], color = "green", linestyle = "--", label = "Megvalósult")
+	plot(time_mem[1:last_idx], q_nom_pos[1:last_idx], color = "red", label = "Nominális")
+	plot(time_mem[1:last_idx], q_pos[1:last_idx], color = "green", linestyle = "--", label = "Megvalósult")
 	legend(loc = 1, borderaxespad = 0)
 	savefig("allplots_vander.pdf")
 
@@ -159,8 +154,8 @@ function singlerun(h_int, q, q_p, q_pp, qN_p, qN_pp, u, idx, lastPlot = true)
 	title("Sebesség az idő függvényében")
 	xlabel("Idő [s]")
 	ylabel("Sebesség [m/s]")
-	plot(time_mem[1:l], qN_p[1:l], color = "red", label = "Nominális")
-	plot(time_mem[1:l], q_p_mem[1:l], color = "green", label = "Megvalósult", linestyle = "--")
+	plot(time_mem[1:last_idx], q_nom_vel[1:last_idx], color = "red", label = "Nominális")
+	plot(time_mem[1:last_idx], q_vel[1:last_idx], color = "green", linestyle = "--", label = "Megvalósult")
 	legend(loc = 1, borderaxespad = 0)
 	savefig("temp_vander.pdf")
 	append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
@@ -170,8 +165,8 @@ function singlerun(h_int, q, q_p, q_pp, qN_p, qN_pp, u, idx, lastPlot = true)
 	title("Gyorsulás az idő függvényében")
 	xlabel("Idő [s]")
 	ylabel("Gyorsulás [m/s²]")
-	plot(time_mem[1:l], qN_pp[1:l], color = "red", label = "Nominális")
-	plot(time_mem[1:l], q_pp_mem[1:l], color = "green", label = "Megvalósult", linestyle = "--")
+	plot(time_mem[1:last_idx], q_nom_acc[1:last_idx], color = "red", label = "Nominális")
+	plot(time_mem[1:last_idx], q_acc[1:last_idx], color = "green", linestyle = "--", label = "Megvalósult")
 	legend(loc = 1, borderaxespad = 0)
 	savefig("temp_vander.pdf")
 	append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
@@ -181,7 +176,7 @@ function singlerun(h_int, q, q_p, q_pp, qN_p, qN_pp, u, idx, lastPlot = true)
 	grid(true)
 	xlabel("Idő [s]")
 	ylabel("Követési hiba [m]")
-	plot(time_mem[1:l], qN_mem[1:l] - q_mem[1:l], color = "red")
+	plot(time_mem[1:last_idx], q_nom_pos[1:last_idx] - q_pos[1:last_idx], color = "red")
 	savefig("temp_vander.pdf")
 	append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
 
@@ -190,7 +185,7 @@ function singlerun(h_int, q, q_p, q_pp, qN_p, qN_pp, u, idx, lastPlot = true)
 	grid(true)
 	xlabel("Idő [s]")
 	ylabel("Irányítójel [N]")
-	plot(time_mem[1:l], u[1:l], color = "red")
+	plot(time_mem[1:last_idx], u_ctrl[1:last_idx], color = "red")
 	savefig("temp_vander.pdf")
 	append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
 
@@ -199,104 +194,21 @@ function singlerun(h_int, q, q_p, q_pp, qN_p, qN_pp, u, idx, lastPlot = true)
 	xlabel("Pozíció [m]")
 	ylabel("Sebesség [m/s]")
 	grid(true)
-	plot(qN_p[1:l], qN_mem[1:l], color = "red", label = "Nominális")
-	plot(q_p_mem[1:l], q_mem[1:l], color = "green", linestyle = "--", label = "Megvalósult")
+	plot(q_nom_vel[1:last_idx], q_nom_pos[1:last_idx], color = "red", label = "Nominális")
+	plot(q_vel[1:last_idx], q_pos[1:last_idx], color = "green", linestyle = "--", label = "Megvalósult")
 	legend(loc = 1, borderaxespad = 0)
 	savefig("temp_vander.pdf")
 	append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
 
 	date_string = Dates.format(now(), "mm-dd_HH-MM")
-	fileName = "./Plots/Vanderpool/" * date_string * "_$idx.pdf"
+	fileName = "./data/VanDerPol/" * date_string * ".pdf"
 	mv("allplots_vander.pdf", fileName)
-	if (Ploting == 0 && lastPlot)
-		close("all")
-		figure("trajectoria")
-		grid(true)
-		title("Trajectory  Run 1 Robust = $Robust \n (q₀=$(q[1]), q̇₀=$(q_p[1]))")
-		xlabel("Idő [s]")
-		ylabel("position")
-		plot(time_mem[1:l], qN_mem[1:l], color = "red", label = "Nominális")
-		plot(time_mem[1:l], q_mem[1:l], color = "green", linestyle = "--", label = "Megvalósult")
-		legend(loc = 1, borderaxespad = 0)
-		savefig("./Plots/Vanderpool/TEMP/traj_run_$idx.png")
-		show()
-	end
+	return (q_pos = q_pos, q_vel = q_vel, q_acc = q_acc, q_nom_pos = q_nom_pos, q_nom_vel = q_nom_vel, q_nom_acc = q_nom_acc)
 end
 
-function run_simulation(q0, q_p0, q_pp0, init_Amp, init_ω, t_range)
-	global time_mem = zeros(LONG)
-	global q_mem = zeros(LONG)
-	global q_p_mem = zeros(LONG)
-	global q_pp_mem = zeros(LONG)
-	global qN_mem = zeros(LONG)
-	global qN_p_mem = zeros(LONG)
-	global qN_pp_mem = zeros(LONG)
-	global h_int = 0
-	global u_mem = zeros(LONG)
-	if (SingleRun == 1)
-		q_mem[1] = q0
-		q_p_mem[1] = q_p0
-		q_pp_mem[1] = q_pp0
-		singlerun(h_int, q_mem, q_p_mem, q_pp_mem, qN_p_mem, qN_pp_mem, u_mem, 1)
-	else
-		# Define initial conditions: (q0, q_p0)
-		# condition_q = (+-)6.3:-0.1:(-+)6.3 ezeken belül stabil a basic beálításokkal
-		condition_q = init_Amp .* sin.(init_ω .* t_range)
-		condition_qp = init_Amp * init_ω .* cos.(init_ω .* t_range)
-		for (idx, (q0, q_p0)) in enumerate(zip(condition_q, condition_qp))
-			# Initialize memory arrays again for each run
-			q_mem[1] = q0
-			q_p_mem[1] = q_p0
-			singlerun(h_int, q_mem, q_p_mem, q_pp_mem, qN_p_mem, qN_pp_mem, u_mem, idx, (idx == length(condition_q)))
-		end
-	end
-	log()
-	if (Ploting == 1 && SingleRun == 1)
-		show()
-	end
-end
-
-##############################
-# Define arrays for Plotting #
-##############################
-
-time_mem = zeros(LONG) # t
-
-q_mem = zeros(LONG) #[q] A megvalósult pálya
-q_p_mem = zeros(LONG)
-q_pp_mem = zeros(LONG)
-
-qN_mem = zeros(LONG) #[qN] A nominális pálya
-qN_p_mem = zeros(LONG)
-qN_pp_mem = zeros(LONG)
-
-u_mem = zeros(LONG)  #[u] A szabályozó jel elmentése
-
-qDes_pp_mem = zeros(LONG) #[qDes_pp] A PID korrekciós adatok
-qDef_pp = zeros(LONG) #Az Adaptívan torzított jelre
-
-h_int = 0 #A követési hiba integrálja
-q_mem[1] = Amp * sin(ω * δt) # Kezdeti pozíció
-q_p_mem[1] = Amp * ω * cos(ω * δt) # Kezdeti sebesség
-q_pp_mem[1] = -Amp * ω^2 * sin(ω * δt)
-
-
-# Setting initial condition
-t_max = 20.0
-init_ω = 0.5
-init_Amp = 2
-
-# időlépések
-δranget = 1
-t_range = 0:δranget:t_max
-
-##############
-# Simulation #
-##############
+# Required packages
 using PyPlot
 using PDFmerger
 using Dates
-run_simulation(q_mem[1], q_p_mem[1], q_pp_mem[1], init_Amp, init_ω, t_range)
-# run_simulation(1, 5, 2, init_Amp, init_ω, t_range)
 
 show()
