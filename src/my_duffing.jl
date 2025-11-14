@@ -13,8 +13,8 @@ SingleRun = 1
 # Time  #
 #########
 δt = 1e-3
-LONG = Int(2e4)
-l = LONG - 3
+N = Int(2e4)
+last_idx = N - 1
 
 ######################
 # Control Parameters #
