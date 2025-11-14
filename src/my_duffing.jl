@@ -14,7 +14,7 @@ SingleRun = 1
 #########
 δt = 1e-3
 LONG = Int(2e4)
-l = LONG - 1
+l = LONG - 3
 
 ######################
 # Control Parameters #
