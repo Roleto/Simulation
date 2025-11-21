@@ -196,7 +196,6 @@ function singlerun(q, q_p, ploting = true)
 
 	date_string = Dates.format(now(), "mm-dd_HH-MM")
 	random_hash = rand(1:100)
-	print(random_hash)
 	fileName = "../Data/Duffing/" * date_string * "_$random_hash" * ".pdf"
 	mv("allplots_duffing.pdf", fileName)
 	return qN_mem[max_index] - q_mem[max_index]
