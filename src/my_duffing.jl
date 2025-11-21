@@ -92,7 +92,6 @@ function log()
 end
 
 function singlerun(q, q_p, ploting = true)
-	init_duffing()
 	q_mem[1] = q
 	q_p_mem[1] = q_p
 	max_index = 1
@@ -297,6 +296,6 @@ using PDFmerger
 using Dates
 
 
-singlerun(0, 0)
+duffing_single_run()
 show()
 
