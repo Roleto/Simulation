@@ -138,13 +138,14 @@ function singlerun(q, q_p, ploting = true)
 	end
 	if ploting
 		# Plotting 
+		l=LONG - 1
 		figure("Trajectory_tracking")
 		grid(true)
 		title("Pályakövetés az idő függvényében")
 		xlabel("Idő [s]")
 		ylabel("Pozíció [m]")
-		plot(time_mem[1:LONG], qN_mem[1:LONG], color = "red", label = "Nominális")
-		plot(time_mem[1:LONG], q_mem[1:LONG], color = "green", linestyle = "--", label = "Megvalósult")
+		plot(time_mem[1:l], qN_mem[1:l], color = "red", label = "Nominális")
+		plot(time_mem[1:l], q_mem[1:l], color = "green", linestyle = "--", label = "Megvalósult")
 		legend(loc = 1, borderaxespad = 0)
 		savefig("allplots_duffing.pdf")
 
@@ -156,9 +157,9 @@ function singlerun(q, q_p, ploting = true)
 		xlabel("Time [s]")
 		ylabel("Acceleration [m/s²]")
 		# ylabel(L"Acceleration $\frac{m}{s^2}$")
-		plot(time_mem[1:LONG], qN_pp_mem[1:LONG], color = "#7684FF", label = "Névleges")
-		plot(time_mem[1:LONG], q_pp_mem[1:LONG], color = "#FFAA41", label = "Realizált", linestyle = "--")
-		plot(time_mem[1:LONG], qDes_pp_mem[1:LONG], color = "#2A40FF", label = "Desired", linestyle = "-.")
+		plot(time_mem[1:l], qN_pp_mem[1:l], color = "#7684FF", label = "Névleges")
+		plot(time_mem[1:l], q_pp_mem[1:l], color = "#FFAA41", label = "Realizált", linestyle = "--")
+		plot(time_mem[1:l], qDes_pp_mem[1:l], color = "#2A40FF", label = "Desired", linestyle = "-.")
 		legend(loc = 1, borderaxespad = 0)
 		savefig("temp_duffing.pdf")
 		append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
@@ -168,7 +169,7 @@ function singlerun(q, q_p, ploting = true)
 		grid(true)
 		xlabel("Idő [s]")
 		ylabel("Követési hiba [m]")
-		plot(time_mem[1:LONG], qN_mem[1:LONG] - q_mem[1:LONG], color = "red")
+		plot(time_mem[1:l], qN_mem[1:l] - q_mem[1:l], color = "red")
 		savefig("temp_duffing.pdf")
 		append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
 
@@ -177,7 +178,7 @@ function singlerun(q, q_p, ploting = true)
 		title("Irányítójel az idő függvényében")
 		xlabel("Idő [s]")
 		ylabel("Irányítójel [N]")
-		plot(time_mem[1:LONG], u_mem[1:LONG], color = "red")
+		plot(time_mem[1:l], u_mem[1:l], color = "red")
 		savefig("temp_duffing.pdf")
 		append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
 
@@ -186,28 +187,19 @@ function singlerun(q, q_p, ploting = true)
 		title("Fázistér")
 		xlabel("Pozíció [m]")
 		ylabel("Sebesség [m/s]")
-		plot(qN_mem[1:LONG, :], qN_p_mem[1:LONG, :], color = "red", label = "Nominális")
-		plot(q_mem[1:LONG, :], q_p_mem[1:LONG, :], color = "green", linestyle = "--", label = "Megvalósult")
+		plot(qN_mem[1:l, :], qN_p_mem[1:l, :], color = "red", label = "Nominális")
+		plot(q_mem[1:l, :], q_p_mem[1:l, :], color = "green", linestyle = "--", label = "Megvalósult")
 		legend(loc = 1, borderaxespad = 0)
 		savefig("temp_duffing.pdf")
 		append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
 	end
+
+	date_string = Dates.format(now(), "mm-dd_HH-MM")
+	random_hash = rand(1:100)
+	print(random_hash)
+	fileName = "../Data/Duffing/" * date_string * "_$random_hash" * ".pdf"
+	mv("allplots_duffing.pdf", fileName)
 	return qN_mem[max_index] - q_mem[max_index]
-	# date_string = Dates.format(now(), "mm-dd_HH-MM")
-	# fileName = "./Plots/Duffing/" * date_string * "_$idx.pdf"
-	# mv("allplots_duffing.pdf", fileName)
-	# if (lastPlot && Ploting == 0)
-	#   close("all")
-	#   figure("trajectoria")
-	#   grid(true)
-	#   title("Trajectory  Run 1 Robust = $Robust \n (q₀=$(q[1]), q̇₀=$(q_p[1]))")
-	#   xlabel("Time [s]")
-	#   ylabel("position")
-	#   plot(time_mem[1:LONG], qN_mem[1:LONG], color = "red", label = "Névleges")
-	#   plot(time_mem[1:LONG], q_mem[1:LONG], color = "green", linestyle = "--", label = "Realizált")
-	#   legend(loc = 1, borderaxespad = 0)
-	#   savefig("./Plots/Duffing/TEMP/traj_run_$idx.png")
-	# end
 end
 
 """
@@ -294,7 +286,6 @@ t_range = 0:δranget:t_max
 
 using PDFmerger
 using Dates
-
 
 duffing_single_run()
 show()
