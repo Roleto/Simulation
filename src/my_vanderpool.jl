@@ -1,3 +1,7 @@
+using PyPlot
+using Pkg
+PyPlot.matplotlib.use("TkAgg")
+Pkg.activate(".")
 ####################################################
 # Van der Pol Oscillator Controlled by RFPT o VSSM #
 ####################################################
@@ -205,22 +209,22 @@ function singlerun(h_int, q, q_p, q_pp, qN_p, qN_pp, u, idx, lastPlot = true)
 	savefig("temp_vander.pdf")
 	append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
 
-	date_string = Dates.format(now(), "mm-dd_HH-MM")
-	fileName = "./Plots/Vanderpool/" * date_string * "_$idx.pdf"
-	mv("allplots_vander.pdf", fileName)
-	if (Ploting == 0 && lastPlot)
-		close("all")
-		figure("trajectoria")
-		grid(true)
-		title("Trajectory  Run 1 Robust = $Robust \n (q₀=$(q[1]), q̇₀=$(q_p[1]))")
-		xlabel("Idő [s]")
-		ylabel("position")
-		plot(time_mem[1:l], qN_mem[1:l], color = "red", label = "Nominális")
-		plot(time_mem[1:l], q_mem[1:l], color = "green", linestyle = "--", label = "Megvalósult")
-		legend(loc = 1, borderaxespad = 0)
-		savefig("./Plots/Vanderpool/TEMP/traj_run_$idx.png")
-		show()
-	end
+	# date_string = Dates.format(now(), "mm-dd_HH-MM")
+	# fileName = "./Plots/Vanderpool/" * date_string * "_$idx.pdf"
+	# mv("allplots_vander.pdf", fileName)
+	# if (Ploting == 0 && lastPlot)
+	# 	close("all")
+	# 	figure("trajectoria")
+	# 	grid(true)
+	# 	title("Trajectory  Run 1 Robust = $Robust \n (q₀=$(q[1]), q̇₀=$(q_p[1]))")
+	# 	xlabel("Idő [s]")
+	# 	ylabel("position")
+	# 	plot(time_mem[1:l], qN_mem[1:l], color = "red", label = "Nominális")
+	# 	plot(time_mem[1:l], q_mem[1:l], color = "green", linestyle = "--", label = "Megvalósult")
+	# 	legend(loc = 1, borderaxespad = 0)
+	# 	savefig("./Plots/Vanderpool/TEMP/traj_run_$idx.png")
+	# 	show()
+	# end
 end
 
 function run_simulation(q0, q_p0, q_pp0, init_Amp, init_ω, t_range)
@@ -250,7 +254,7 @@ function run_simulation(q0, q_p0, q_pp0, init_Amp, init_ω, t_range)
 			singlerun(h_int, q_mem, q_p_mem, q_pp_mem, qN_p_mem, qN_pp_mem, u_mem, idx, (idx == length(condition_q)))
 		end
 	end
-	log()
+	# log()
 	if (Ploting == 1 && SingleRun == 1)
 		show()
 	end

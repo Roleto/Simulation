@@ -1,6 +1,10 @@
 #############################################
 # Duffing Oscillator Controlled by RFPT o VSSM #
 #############################################
+using PyPlot
+using Pkg
+PyPlot.matplotlib.use("TkAgg")
+Pkg.activate(".")
 
 ######################
 # Control Parameters #
@@ -182,21 +186,21 @@ function singlerun(h_int, q, q_p, q_pp, qN_p, qN_pp, u, idx, lastPlot = true)
 	savefig("temp_duffing.pdf")
 	append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
 
-	date_string = Dates.format(now(), "mm-dd_HH-MM")
-	fileName = "./Plots/Duffing/" * date_string * "_$idx.pdf"
-	mv("allplots_duffing.pdf", fileName)
-	if (lastPlot && Ploting == 0)
-		close("all")
-		figure("trajectoria")
-		grid(true)
-		title("Trajectory  Run 1 Robust = $Robust \n (q₀=$(q[1]), q̇₀=$(q_p[1]))")
-		xlabel("Time [s]")
-		ylabel("position")
-		plot(time_mem[1:l], qN_mem[1:l], color = "red", label = "Névleges")
-		plot(time_mem[1:l], q_mem[1:l], color = "green", linestyle = "--", label = "Realizált")
-		legend(loc = 1, borderaxespad = 0)
-		savefig("./Plots/Duffing/TEMP/traj_run_$idx.png")
-	end
+	# date_string = Dates.format(now(), "mm-dd_HH-MM")
+	# fileName = "./Plots/Duffing/" * date_string * "_$idx.pdf"
+	# mv("allplots_duffing.pdf", fileName)
+	# if (lastPlot && Ploting == 0)
+	# 	close("all")
+	# 	figure("trajectoria")
+	# 	grid(true)
+	# 	title("Trajectory  Run 1 Robust = $Robust \n (q₀=$(q[1]), q̇₀=$(q_p[1]))")
+	# 	xlabel("Time [s]")
+	# 	ylabel("position")
+	# 	plot(time_mem[1:l], qN_mem[1:l], color = "red", label = "Névleges")
+	# 	plot(time_mem[1:l], q_mem[1:l], color = "green", linestyle = "--", label = "Realizált")
+	# 	legend(loc = 1, borderaxespad = 0)
+	# 	savefig("./Plots/Duffing/TEMP/traj_run_$idx.png")
+	# end
 end
 
 function run_simulation(q0, q_p0, q_pp0, init_Amp, init_ω, t_range)
@@ -225,7 +229,7 @@ function run_simulation(q0, q_p0, q_pp0, init_Amp, init_ω, t_range)
 			singlerun(h_int, q_mem, q_p_mem, q_pp_mem, qN_p_mem, qN_pp_mem, u_mem, idx, (idx == length(condition_q)))
 		end
 	end
-	log()
+	# log()
 	if (Ploting == 1 && SingleRun == 1)
 		show()
 	end
@@ -265,7 +269,6 @@ init_Amp = 2
 δranget = 1
 t_range = 0:δranget:t_max
 
-using PyPlot
 using PDFmerger
 using Dates
 run_simulation(q_mem[1], q_p_mem[1], q_pp_mem[1], init_Amp, init_ω, t_range)

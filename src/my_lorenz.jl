@@ -14,6 +14,10 @@
 # ż=xy-βz    #
 ##############
 
+using PyPlot
+using Pkg
+PyPlot.matplotlib.use("TkAgg")
+Pkg.activate(".")
 using LinearAlgebra
 using PyPlot
 
@@ -567,7 +571,7 @@ function run_simulation(q0, q_p0, q_pp0, init_Amp, init_ω, t_range)
 			singlerun(hint_x, hint_y, hint_z, past_input, past_input_p, past_response, error_limit, idx)
 		end
 	end
-	log()
+	# log()
 	if (Ploting == 1 && SingleRun == 1)
 		show()
 	end

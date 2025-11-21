@@ -14,7 +14,10 @@
 # ż=b+z(x-c)    #
 
 ##########
-
+using PyPlot
+using Pkg
+PyPlot.matplotlib.use("TkAgg")
+Pkg.activate(".")
 using LinearAlgebra
 using PyPlot
 
@@ -527,20 +530,20 @@ append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
 ############
 using Dates
 
-date_string = Dates.format(now(), "mm-dd_HH-MM")
-fileName = "./Plots/Rossler/" * date_string * ".pdf"
-mv("allplots_rossler.pdf", fileName)
-file = open("./Plots/Rossler/log.txt", "a")
-line_breaker = "\n####################################################\n"
+# date_string = Dates.format(now(), "mm-dd_HH-MM")
+# fileName = "./Plots/Rossler/" * date_string * ".pdf"
+# mv("allplots_rossler.pdf", fileName)
+# file = open("./Plots/Rossler/log.txt", "a")
+# line_breaker = "\n####################################################\n"
 
-file_text = string(line_breaker, date_string, " Következö paraméterekkel volt használva:\nControl Params:\n",
-	"K= ", K, "\tB= ", B, "\tA= ", A, "\tw= ", w, "\tΛ= ", Λ,
-	"\nApproximate Model Parameters:\naₐ=", aₐ, "\tbₐ=", bₐ, "\tcₐ=", cₐ,
-	"\nTime variable :\nδt=", δt, "\t=LONG", LONG, "\n",
-	"\nExact Model Parameters:\naₑ=", aₑ, "\tbₑ=", bₑ, "\tcₑ=", cₑ,
-	"\nNominal Trajectory Parameters:\nω=", [ω₁, ω₂, ω₃], "\nAmp=", [A₁, A₂, A₃], line_breaker)
-write(file, file_text)
-close(file)
+# file_text = string(line_breaker, date_string, " Következö paraméterekkel volt használva:\nControl Params:\n",
+# 	"K= ", K, "\tB= ", B, "\tA= ", A, "\tw= ", w, "\tΛ= ", Λ,
+# 	"\nApproximate Model Parameters:\naₐ=", aₐ, "\tbₐ=", bₐ, "\tcₐ=", cₐ,
+# 	"\nTime variable :\nδt=", δt, "\t=LONG", LONG, "\n",
+# 	"\nExact Model Parameters:\naₑ=", aₑ, "\tbₑ=", bₑ, "\tcₑ=", cₑ,
+# 	"\nNominal Trajectory Parameters:\nω=", [ω₁, ω₂, ω₃], "\nAmp=", [A₁, A₂, A₃], line_breaker)
+# write(file, file_text)
+# close(file)
 
 
 # fig_caption = "nominal_realized_trajectories"
