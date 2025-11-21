@@ -5,21 +5,20 @@ PyPlot.matplotlib.use("TkAgg")
 Pkg.activate(".")
 # Toggle which simulations to run (1 = run, 0 = skip)
 run_duffing = 1
-run_lorenz = 1
-run_rossler = 1
-run_vanderpol = 1
+run_lorenz = 0
+run_rossler = 0
+run_vanderpol = 0
 
 # Include model source files
-include("my_duffing.jl")
+# include("my_duffing.jl")
 include("my_lorenz.jl")
 include("my_rossler.jl")
 include("my_vanderpool.jl")
 
 # Execute simulations (each file currently auto-runs on include; optional explicit calls)
-if run_duffing == 1 && isdefined(@__MODULE__, :simulate_duffing)
-	println("Running Duffing simulation...")
-	# Already executed inside file; could re-run if desired
-	simulate_duffing()
+if run_duffing == 1 && isdefined(@__MODULE__, :duffing_single_run)
+	println("Running Duffing single run...")
+	duffing_single_run()
 end
 
 if run_lorenz == 1 && isdefined(@__MODULE__, :simulate_lorenz)

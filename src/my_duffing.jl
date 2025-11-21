@@ -1,10 +1,8 @@
 #############################################
 # Duffing Oscillator Controlled by RFPT o VSSM #
 #############################################
-using PyPlot
-using Pkg
-PyPlot.matplotlib.use("TkAgg")
-Pkg.activate(".")
+using PDFmerger
+using Dates
 
 ######################
 # Control Parameters #
@@ -229,7 +227,11 @@ end
 # Convenience wrapper to call original singlerun after init
 function duffing_single_run(; plot = true)
 	q0, q_p0 = init_duffing(; plot = plot)
-	return singlerun(q0, q_p0, plot)
+	max_error = singlerun(q0, q_p0, plot)
+	if plot
+		show()
+	end
+	return max_error
 end
 
 # ---------------------------------------------------------------
@@ -282,10 +284,3 @@ init_Amp = 2
 # időlépések
 δranget = 1
 t_range = 0:δranget:t_max
-
-using PDFmerger
-using Dates
-
-duffing_single_run()
-show()
-
