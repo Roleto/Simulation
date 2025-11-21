@@ -1,19 +1,24 @@
 #############################################
 # Duffing Oscillator Controlled by RFPT o VSSM #
 #############################################
+using PyPlot
+using Pkg
+PyPlot.matplotlib.use("TkAgg")
+Pkg.activate(".")
 
 ######################
 # Control Parameters #
 ######################
-adaptive = 1
-robust = 1
-plotting = 1
+Adaptive = 1
+Robust = 1
+Ploting = 1
+SingleRun = 1
 #########
 # Time  #
 #########
 δt = 1e-3
 N = Int(2e4)
-last_idx = N - 1
+LONG = N - 1
 
 ######################
 # Control Parameters #
@@ -49,7 +54,6 @@ Amp = 2
 αₐ = 0.8
 δₐ = 0.1
 βₐ = 0.9
-βₐ = 0.9
 
 Exact(q, q_p, u) = αₑ * q + δₑ * q_p + βₑ * q^3 + u
 
@@ -60,167 +64,225 @@ KinBlock(S, h, h_p, qN_pp) = K_VSSM * tanh(S / w) + Λ^2 * h + 2 * Λ * h_p + qN
 
 G(past_input, past_response, xDnow) = (K + past_input) * (1 + B * tanh(A * (past_response - xDnow))) - K
 
-function nominal_traj(t)
-	q_nom_pos_val = Amp * sin(ω * t)
-	q_nom_vel_val = ω * Amp * cos(ω * t)
-	q_nom_acc_val = -Amp * ω^2 * sin(ω * t)
-	return q_nom_pos_val, q_nom_vel_val, q_nom_acc_val
+function nominalTraj(t)
+	qN = Amp * sin(ω * t)
+	q_pN = ω * Amp * cos(ω * t)
+	q_ppN = -Amp * ω^2 * sin(ω * t)
+	return qN, q_pN, q_ppN
 end
 
 function log()
 	date_string = Dates.format(now(), "mm-dd_HH-MM")
 	line_breaker = "\n####################################################\n"
-	is_adaptive = Bool(1 == adaptive)
-	is_robust = Bool(1 == robust)
-	file = open("./data/Duffing/log.txt", "a")
-	file_text = string(line_breaker, date_string, " Parameters:\nadaptive=", is_adaptive, " robust=", is_robust,
+	isAdaptiv = Bool(1 == Adaptive)
+	isRobust = Bool(1 == Robust)
+
+	file = open("./Plots/Duffing/log.txt", "a")
+	file_text = string(line_breaker, date_string, " Következö paraméterekkel volt használva:\nAdaptiv=", isAdaptiv, "Robust=", isRobust,
 		"\nControl Params:\n",
 		"K=", K, "\tB=", B, "\tA=", A, "\tw=", w, "\tΛ=", Λ,
-		"\nTime:\nδt=", δt, "\tN=", N, "\n",
+		"\nTime variable :\nδt=", δt, "\t=LONG", LONG, "\n",
 		"\nApproximate Model Parameters:\nαₐ=", αₐ, "\tδₐ=", δₐ, "\tβₐ=", βₐ,
 		"\nExact Model Parameters:\nαₑ=", αₑ, "\tδₑ=", δₑ, "\tβₑ=", βₑ,
-		"\nNominal Trajectory Parameters:\nω=", ω, "\tAmp=", Amp, line_breaker)
+		"\nNominal Trajectory Parameters:\nω=", ω, "\tAmp=", Amp, line_breaker,
+	)
+
 	write(file, file_text)
 	close(file)
 end
 
-function duffing_single_run()
-	# allocate fresh arrays
-	time_mem = zeros(N)
-	q_pos = zeros(N);
-	q_vel = zeros(N);
-	q_acc = zeros(N)
-	q_nom_pos = zeros(N);
-	q_nom_vel = zeros(N);
-	q_nom_acc = zeros(N)
-	q_des_acc = zeros(N);
-	q_def_acc = zeros(N);
-	u_ctrl = zeros(N)
-	err_int = 0.0
-	# initial conditions
-	q_pos[1] = Amp * sin(ω * δt)
-	q_vel[1] = Amp * ω * cos(ω * δt)
-	q_acc[1] = -Amp * ω^2 * sin(ω * δt)
-	for t in 1:last_idx
+function singlerun(q, q_p, ploting = true)
+	init_duffing()
+	q_mem[1] = q
+	q_p_mem[1] = q_p
+	max_index = 1
+	h_int = 0
+	for t ∈ 1:(LONG-1)
 		time_mem[t] = t * δt
 
-		# Nominal trajectory
-		q_nom_pos[t], q_nom_vel[t], q_nom_acc[t] = nominal_traj(time_mem[t])
+		#define the nominal trajectory
+		qN_mem[t], qN_p_mem[t], qN_pp_mem[t] = nominalTraj(time_mem[t])
 
-		# Errors
-		err_pos = q_nom_pos[t] - q_pos[t]
-		err_vel = q_nom_vel[t] - q_vel[t]
+		# Compute the Errors
+		h = qN_mem[t] - q_mem[t]
+		h_p = qN_p_mem[t] - q_p_mem[t]
 
-		# Desired acc
-		if robust == 1
-			S = ErrorMetrics(err_int, err_pos, err_vel)
-			q_des_acc[t] = KinBlock(S, err_pos, err_vel, q_nom_acc[t])
-		else
-			q_des_acc[t] = q_nom_acc[t] + Λ^3 * err_int + 3 * Λ^2 * err_pos + 3 * Λ * err_vel
+		# Finding max value
+		h_max = qN_mem[max_index] - q_mem[max_index]
+		if (h*h) < (h_max*h_max)
+			max_index = t
 		end
 
-		# Deformation
-		if adaptive == 1 && t > 3
-			q_def_acc[t] = G(q_def_acc[t-1], q_acc[t-1], q_des_acc[t])
+		if Robust == 1
+			S = ErrorMetrics(h_int, h, h_p)
+			qDes_pp_mem[t] = KinBlock(S, h, h_p, qN_pp_mem[t])
 		else
-			q_def_acc[t] = q_des_acc[t]
+			qDes_pp_mem[t] = qN_pp_mem[t] + Λ^3 * h_int + 3 * Λ^2 * h + 3 * Λ * h_p
 		end
 
-		u_ctrl[t] = Approx(q_pos[t], q_vel[t], q_def_acc[t])
+		if Adaptive == 1 && t > 3
+			qDef_pp_mem[t] = G(qDef_pp_mem[t-1], q_pp_mem[t-1], qDes_pp_mem[t])
+		else
+			qDef_pp_mem[t] = qDes_pp_mem[t]
+		end
 
-		# Exact system response
-		q_acc[t] = Exact(q_pos[t], q_vel[t], u_ctrl[t])
+		u_mem[t] = Approx(q_mem[t], q_p_mem[t], qDef_pp_mem[t])
 
-		# Euler integration
-		q_vel[t+1] = q_vel[t] + δt * q_acc[t]
-		q_pos[t+1] = q_pos[t] + δt * q_vel[t]
-		err_int += δt * err_pos
+		# Compute the exact systems's respons
+		q_pp_mem[t] = Exact(q_mem[t], q_p_mem[t], u_mem[t])
+		q_pp = αₑ * q_mem[t] + δₑ * q_p_mem[t] + βₑ * q_mem[t]^3 + u_mem[t]
+
+		#Integrate back with Euler's method
+		q_p_mem[t+1] = q_p_mem[t] + δt * q_pp_mem[t]
+		q_mem[t+1] = q_mem[t] + δt * q_p_mem[t]
+		h_int = h_int + δt * h
 	end
+	if ploting
+		# Plotting 
+		figure("Trajectory_tracking")
+		grid(true)
+		title("Pályakövetés az idő függvényében")
+		xlabel("Idő [s]")
+		ylabel("Pozíció [m]")
+		plot(time_mem[1:LONG], qN_mem[1:LONG], color = "red", label = "Nominális")
+		plot(time_mem[1:LONG], q_mem[1:LONG], color = "green", linestyle = "--", label = "Megvalósult")
+		legend(loc = 1, borderaxespad = 0)
+		savefig("allplots_duffing.pdf")
 
-	# Plots
-	figure("Trajectory_tracking");
-	grid(true);
-	title("Pályakövetés az idő függvényében");
-	xlabel("Idő [s]");
-	ylabel("Pozíció [m]")
-	plot(time_mem[1:last_idx], q_nom_pos[1:last_idx], color = "red", label = "Nominális")
-	plot(time_mem[1:last_idx], q_pos[1:last_idx], color = "green", linestyle = "--", label = "Megvalósult");
-	legend(loc = 1);
-	savefig("allplots_duffing.pdf")
-	figure("Acceleration");
-	grid(true);
-	title("Gyorsulások");
-	xlabel("Idő [s]");
-	ylabel("Gyorsulás [m/s²]")
-	plot(time_mem[1:last_idx], q_nom_acc[1:last_idx], color = "#7684FF", label = "Névleges")
-	plot(time_mem[1:last_idx], q_acc[1:last_idx], color = "#FFAA41", linestyle = "--", label = "Realizált")
-	plot(time_mem[1:last_idx], q_des_acc[1:last_idx], color = "#2A40FF", linestyle = "-.", label = "Desired");
-	legend(loc = 1);
-	savefig("temp_duffing.pdf");
-	append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
-	figure("Tracking_Error");
-	grid(true);
-	title("Követési hiba");
-	xlabel("Idő [s]");
-	ylabel("Hiba [m]")
-	plot(time_mem[1:last_idx], q_nom_pos[1:last_idx] - q_pos[1:last_idx], color = "red");
-	savefig("temp_duffing.pdf");
-	append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
-	figure("Control_Signal");
-	grid(true);
-	title("Irányítójel");
-	xlabel("Idő [s]");
-	ylabel("Irányítójel [N]")
-	plot(time_mem[1:last_idx], u_ctrl[1:last_idx], color = "red");
-	savefig("temp_duffing.pdf");
-	append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
-	figure("Phase_Space");
-	grid(true);
-	title("Fázistér");
-	xlabel("Pozíció [m]");
-	ylabel("Sebesség [m/s]")
-	plot(q_nom_pos[1:last_idx], q_nom_vel[1:last_idx], color = "red", label = "Nominális")
-	plot(q_pos[1:last_idx], q_vel[1:last_idx], color = "green", linestyle = "--", label = "Megvalósult");
-	legend(loc = 1);
-	savefig("temp_duffing.pdf");
-	append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
-	date_string = Dates.format(now(), "mm-dd_HH-MM");
-	fileName = "./data/Duffing/" * date_string * ".pdf";
-	mv("allplots_duffing.pdf", fileName)
-	log();
-	if plotting == 1
-		show()
+		#velocity gyorsan kell
+
+		figure("Acceleration")
+		grid(true)
+		title("Accelerations vs Time")
+		xlabel("Time [s]")
+		ylabel("Acceleration [m/s²]")
+		# ylabel(L"Acceleration $\frac{m}{s^2}$")
+		plot(time_mem[1:LONG], qN_pp_mem[1:LONG], color = "#7684FF", label = "Névleges")
+		plot(time_mem[1:LONG], q_pp_mem[1:LONG], color = "#FFAA41", label = "Realizált", linestyle = "--")
+		plot(time_mem[1:LONG], qDes_pp_mem[1:LONG], color = "#2A40FF", label = "Desired", linestyle = "-.")
+		legend(loc = 1, borderaxespad = 0)
+		savefig("temp_duffing.pdf")
+		append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
+
+		figure("Tracking_Error")
+		title("Követési hiba az idő függvényében")
+		grid(true)
+		xlabel("Idő [s]")
+		ylabel("Követési hiba [m]")
+		plot(time_mem[1:LONG], qN_mem[1:LONG] - q_mem[1:LONG], color = "red")
+		savefig("temp_duffing.pdf")
+		append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
+
+		figure("Control_Signal")
+		grid(true)
+		title("Irányítójel az idő függvényében")
+		xlabel("Idő [s]")
+		ylabel("Irányítójel [N]")
+		plot(time_mem[1:LONG], u_mem[1:LONG], color = "red")
+		savefig("temp_duffing.pdf")
+		append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
+
+		figure("Phase_Space")
+		grid(true)
+		title("Fázistér")
+		xlabel("Pozíció [m]")
+		ylabel("Sebesség [m/s]")
+		plot(qN_mem[1:LONG, :], qN_p_mem[1:LONG, :], color = "red", label = "Nominális")
+		plot(q_mem[1:LONG, :], q_p_mem[1:LONG, :], color = "green", linestyle = "--", label = "Megvalósult")
+		legend(loc = 1, borderaxespad = 0)
+		savefig("temp_duffing.pdf")
+		append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
 	end
-	return (q_pos = q_pos, q_vel = q_vel, q_acc = q_acc, q_nom_pos = q_nom_pos)
+	return qN_mem[max_index] - q_mem[max_index]
+	# date_string = Dates.format(now(), "mm-dd_HH-MM")
+	# fileName = "./Plots/Duffing/" * date_string * "_$idx.pdf"
+	# mv("allplots_duffing.pdf", fileName)
+	# if (lastPlot && Ploting == 0)
+	#   close("all")
+	#   figure("trajectoria")
+	#   grid(true)
+	#   title("Trajectory  Run 1 Robust = $Robust \n (q₀=$(q[1]), q̇₀=$(q_p[1]))")
+	#   xlabel("Time [s]")
+	#   ylabel("position")
+	#   plot(time_mem[1:LONG], qN_mem[1:LONG], color = "red", label = "Névleges")
+	#   plot(time_mem[1:LONG], q_mem[1:LONG], color = "green", linestyle = "--", label = "Realizált")
+	#   legend(loc = 1, borderaxespad = 0)
+	#   savefig("./Plots/Duffing/TEMP/traj_run_$idx.png")
+	# end
 end
 
-function simulate_duffing()
-	return duffing_single_run()
+"""
+	init_duffing(;plot=true)
+
+Allocate/initialize globals for Duffing simulation. Returns initial (q0, q_p0).
+Set `Ploting` externally if desired. Use returned values to call `duffing_single_run`.
+"""
+function init_duffing(; plot = true)
+	global time_mem = zeros(LONG) #t
+	global q_mem = zeros(LONG) # realized trajectory
+	global q_p_mem = zeros(LONG)
+	global q_pp_mem = zeros(LONG)
+	global qN_mem = zeros(LONG) # nominal trajectory
+	global qN_p_mem = zeros(LONG)
+	global qN_pp_mem = zeros(LONG)
+	global u_mem = zeros(LONG)  # control signal
+	global qDes_pp_mem = zeros(LONG)
+	global qDef_pp_mem = zeros(LONG)
+	global h_int = 0
+	# initial state from nominal trajectory at first time step
+	q_mem[1] = Amp * sin(ω * δt)
+	q_p_mem[1] = Amp * ω * cos(ω * δt)
+	q_pp_mem[1] = -Amp * ω^2 * sin(ω * δt)
+	return q_mem[1], q_p_mem[1]
 end
+
+# Convenience wrapper to call original singlerun after init
+function duffing_single_run(; plot = true)
+	q0, q_p0 = init_duffing(; plot = plot)
+	return singlerun(q0, q_p0, plot)
+end
+
+# ---------------------------------------------------------------
+# Archived original multi-run grid search (run_simulation)
+# Keeping for future reference; can be re-enabled or refactored.
+#
+# function run_simulation(q_param, q_p_param, q_pp_param)
+#   global time_mem = zeros(LONG)
+#   global q_mem = zeros(LONG)
+#   global q_p_mem = zeros(LONG)
+#   global q_pp_mem = zeros(LONG)
+#   global qN_mem = zeros(LONG)
+#   global qN_p_mem = zeros(LONG)
+#   global qN_pp_mem = zeros(LONG)
+#   global h_int = 0
+#   global u_mem = zeros(LONG)
+#   position = zeros(441)
+#   velocity = zeros(441)
+#   error_max = zeros(441)
+#   index = 1
+#   for q0 in -1:0.1:1
+#       for q_p0 in -1:0.1:1
+#           position[index] = q0
+#           velocity[index] = q_p0
+#           error_max[index] = singlerun(q0, q_p0, false)
+#           index += 1
+#       end
+#   end
+#   figure("Error_Max")
+#   grid(true)
+#   title("Hiba Tér")
+#   xlabel("Pozíció [m]")
+#   ylabel("Sebesség [m/s]")
+#   plot(position[1:441], error_max[1:441], color = "red", label = "Hiba")
+#   legend(loc = 1, borderaxespad = 0)
+# end
+# ---------------------------------------------------------------
 
 ##############################
 # Define arrays for Plotting #
 ##############################
 
-time_mem = zeros(N) # t
-
-q_pos = zeros(N) # megvalósult pálya (position)
-q_vel = zeros(N) # velocity
-q_acc = zeros(N) # acceleration
-
-q_nom_pos = zeros(N) # nominális pálya
-q_nom_vel = zeros(N)
-q_nom_acc = zeros(N)
-
-u_ctrl = zeros(N)  # szabályozó jel
-
-q_des_acc = zeros(N) # desired acceleration
-q_def_acc = zeros(N) # deformed acceleration (adaptive)
-
-err_int = 0
-q_pos[1] = Amp * sin(ω * δt)
-q_vel[1] = Amp * ω * cos(ω * δt)
-q_acc[1] = -Amp * ω^2 * sin(ω * δt)
+# Initialization moved to init_duffing()
 
 # Setting initial condition
 t_max = 20.0
@@ -231,12 +293,10 @@ init_Amp = 2
 δranget = 1
 t_range = 0:δranget:t_max
 
-using PyPlot
 using PDFmerger
 using Dates
-# simulate_duffing()
-# run_simulation(1, 5, 2, init_Amp, init_ω, t_range)
 
 
-
+singlerun(0, 0)
 show()
+
