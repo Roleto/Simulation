@@ -11,9 +11,9 @@ run_vanderpol = 0
 
 # Include model source files
 # include("my_duffing.jl")
-include("my_lorenz.jl")
-include("my_rossler.jl")
-include("my_vanderpool.jl")
+# include("my_lorenz.jl")
+# include("my_rossler.jl")
+# include("my_vanderpool.jl")
 
 # Execute simulations (each file currently auto-runs on include; optional explicit calls)
 if run_duffing == 1 && isdefined(@__MODULE__, :duffing_single_run)
