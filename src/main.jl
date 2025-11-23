@@ -10,7 +10,7 @@ run_rossler = 0
 run_vanderpol = 0
 
 # Include model source files
-# include("my_duffing.jl")
+include("my_duffing.jl")
 # include("my_lorenz.jl")
 # include("my_rossler.jl")
 # include("my_vanderpool.jl")
@@ -18,7 +18,7 @@ run_vanderpol = 0
 # Execute simulations (each file currently auto-runs on include; optional explicit calls)
 if run_duffing == 1 && isdefined(@__MODULE__, :duffing_single_run)
 	println("Running Duffing single run...")
-	duffing_single_run()
+	duffing_single_run(0, 0; plot = true)
 end
 
 if run_lorenz == 1 && isdefined(@__MODULE__, :simulate_lorenz)

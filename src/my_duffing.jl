@@ -9,7 +9,6 @@ using Dates
 ######################
 Adaptive = 1
 Robust = 1
-Ploting = 1
 SingleRun = 1
 #########
 # Time  #
@@ -136,7 +135,7 @@ function singlerun(q, q_p, ploting = true)
 	end
 	if ploting
 		# Plotting 
-		l=LONG - 1
+		l=LONG - l
 		figure("Trajectory_tracking")
 		grid(true)
 		title("Pályakövetés az idő függvényében")
@@ -205,7 +204,7 @@ end
 Allocate/initialize globals for Duffing simulation. Returns initial (q0, q_p0).
 Set `Ploting` externally if desired. Use returned values to call `duffing_single_run`.
 """
-function init_duffing(; plot = true)
+function init_duffing(q0, q_p0; plot = true)
 	global time_mem = zeros(LONG) #t
 	global q_mem = zeros(LONG) # realized trajectory
 	global q_p_mem = zeros(LONG)
@@ -218,20 +217,27 @@ function init_duffing(; plot = true)
 	global qDef_pp_mem = zeros(LONG)
 	global h_int = 0
 	# initial state from nominal trajectory at first time step
+	# q_mem[1] = q0
+	# q_p_mem[1] = q_p0
 	q_mem[1] = Amp * sin(ω * δt)
 	q_p_mem[1] = Amp * ω * cos(ω * δt)
 	q_pp_mem[1] = -Amp * ω^2 * sin(ω * δt)
-	return q_mem[1], q_p_mem[1]
 end
 
 # Convenience wrapper to call original singlerun after init
-function duffing_single_run(; plot = true)
-	q0, q_p0 = init_duffing(; plot = plot)
+function duffing_single_run(q0, q_p0; plot = true)
+	init_duffing(q0, q_p0; plot = plot)
 	max_error = singlerun(q0, q_p0, plot)
 	if plot
 		show()
 	end
 	return max_error
+end
+
+function duffing_single_run(; plot = true)
+	q0=0
+	q_p0=0
+	return duffing_single_run(q0, q_p0; plot = plot)
 end
 
 # ---------------------------------------------------------------
