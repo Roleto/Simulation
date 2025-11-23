@@ -99,6 +99,7 @@ end
 function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot::Bool = true)
 	δt = p.δt
 	N = p.N
+
 	LONG = N - 1
 
 	# preallocate arrays (Float64)
@@ -121,8 +122,8 @@ function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot:
 
 	max_index = 1
 	h_int = 0.0
-
-	for t in 1:(LONG)
+	l = LONG - 1
+	for t in LONG
 		time_mem[t] = t * δt
 
 		qN_mem[t], qN_p_mem[t], qN_pp_mem[t] = nominalTraj(p, time_mem[t])
@@ -173,8 +174,8 @@ function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot:
 		title("Pályakövetés az idő függvényében")
 		xlabel("Idő [s]")
 		ylabel("Pozíció [m]")
-		plot(time_mem[1:LONG], qN_mem[1:LONG], label = "Nominális")
-		plot(time_mem[1:LONG], q_mem[1:LONG], linestyle = "--", label = "Megvalósult")
+		plot(time_mem[1:l], qN_mem[1:l], label = "Nominális")
+		plot(time_mem[1:l], q_mem[1:l], linestyle = "--", label = "Megvalósult")
 		legend(loc = 1)
 
 		# Acceleration
@@ -184,9 +185,9 @@ function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot:
 		title("Accelerations vs Time")
 		xlabel("Time [s]")
 		ylabel("Acceleration [m/s²]")
-		plot(time_mem[1:LONG], qN_pp_mem[1:LONG], label = "Névleges")
-		plot(time_mem[1:LONG], q_pp_mem[1:LONG], linestyle = "--", label = "Realizált")
-		plot(time_mem[1:LONG], qDes_pp_mem[1:LONG], linestyle = "-.", label = "Desired")
+		plot(time_mem[1:l], qN_pp_mem[1:l], label = "Névleges")
+		plot(time_mem[1:l], q_pp_mem[1:l], linestyle = "--", label = "Realizált")
+		plot(time_mem[1:l], qDes_pp_mem[1:l], linestyle = "-.", label = "Desired")
 		legend(loc = 1)
 
 		# Tracking error
@@ -196,7 +197,7 @@ function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot:
 		title("Követési hiba az idő függvényében")
 		xlabel("Idő [s]")
 		ylabel("Követési hiba [m]")
-		plot(time_mem[1:LONG], qN_mem[1:LONG] .- q_mem[1:LONG], label = "Hiba")
+		plot(time_mem[1:l], qN_mem[1:l] .- q_mem[1:l], label = "Hiba")
 		legend(loc = 1)
 
 		# Phase space
@@ -206,8 +207,8 @@ function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot:
 		title("Fázistér")
 		xlabel("Pozíció [m]")
 		ylabel("Sebesség [m/s]")
-		plot(qN_mem[1:LONG], qN_p_mem[1:LONG], label = "Nominális")
-		plot(q_mem[1:LONG], q_p_mem[1:LONG], linestyle = "--", label = "Megvalósult")
+		plot(qN_mem[1:l], qN_p_mem[1:l], label = "Nominális")
+		plot(q_mem[1:l], q_p_mem[1:l], linestyle = "--", label = "Megvalósult")
 		legend(loc = 1)
 
 		if p.save_pdf
