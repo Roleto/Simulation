@@ -9,7 +9,6 @@ using Dates
 ######################
 Adaptive = 1
 Robust = 1
-SingleRun = 1
 #########
 # Time  #
 #########
@@ -88,12 +87,13 @@ function log()
 	close(file)
 end
 
-function singlerun(q, q_p, ploting = true)
+function simulation(q, q_p, ploting = true)
 	q_mem[1] = q
 	q_p_mem[1] = q_p
 	max_index = 1
 	h_int = 0
-	for t ∈ 1:(LONG-1)
+	l=LONG - 1
+	for t ∈ 1:l
 		time_mem[t] = t * δt
 
 		#define the nominal trajectory
@@ -135,7 +135,6 @@ function singlerun(q, q_p, ploting = true)
 	end
 	if ploting
 		# Plotting 
-		l=LONG - l
 		figure("Trajectory_tracking")
 		grid(true)
 		title("Pályakövetés az idő függvényében")
@@ -224,10 +223,10 @@ function init_duffing(q0, q_p0; plot = true)
 	q_pp_mem[1] = -Amp * ω^2 * sin(ω * δt)
 end
 
-# Convenience wrapper to call original singlerun after init
+# Convenience wrapper to call original simulation after init
 function duffing_single_run(q0, q_p0; plot = true)
 	init_duffing(q0, q_p0; plot = plot)
-	max_error = singlerun(q0, q_p0, plot)
+	max_error = simulation(q0, q_p0, plot)
 	if plot
 		show()
 	end
@@ -262,7 +261,7 @@ end
 #       for q_p0 in -1:0.1:1
 #           position[index] = q0
 #           velocity[index] = q_p0
-#           error_max[index] = singlerun(q0, q_p0, false)
+#           error_max[index] = simulation(q0, q_p0, false)
 #           index += 1
 #       end
 #   end
