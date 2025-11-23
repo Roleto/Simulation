@@ -32,7 +32,7 @@ if run_duffing == 1 && isdefined(@__MODULE__, :duffing_single_run)
 	p.save_pdf = true
 	p.pdf_dir = "data/Duffing/"
 
-	err2 = duffing_single_run(p, q0, q_p0; do_plot = true)
+	err2 = duffing_single_run(p, 0.0, 0.0; do_plot = true)
 
 	# # grid search
 	# res, csvfile = grid_search(p, -1.0:0.2:1.0, -1.0:0.2:1.0; plot = false)
