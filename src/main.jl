@@ -31,7 +31,8 @@ if run_duffing == 1 && isdefined(@__MODULE__, :duffing_single_run)
 	p.N = Int(2e4)
 	p.save_pdf = true
 	p.pdf_dir = "data/Duffing/"
-	err2 = duffing_single_run(p, 0, 1; do_plot = true)
+
+	err2 = duffing_single_run(p, q0, q_p0; do_plot = true)
 
 	# # grid search
 	# res, csvfile = grid_search(p, -1.0:0.2:1.0, -1.0:0.2:1.0; plot = false)
@@ -54,4 +55,4 @@ if run_vanderpol == 1 && isdefined(@__MODULE__, :vanderpol_single_run)
 	vanderpol_single_run() # underlying call in file through simulate_vanderpol
 end
 
-println("Minden szimuláció lefutott (vagy ki volt kapcsolva).")
+# println("Minden szimuláció lefutott (vagy ki volt kapcsolva).")

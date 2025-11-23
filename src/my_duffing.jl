@@ -103,28 +103,27 @@ function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot:
 	LONG = N - 1
 
 	# preallocate arrays (Float64)
-	time_mem = zeros(Float64, LONG)
-	q_mem = zeros(Float64, LONG)
-	q_p_mem = zeros(Float64, LONG)
-	q_pp_mem = zeros(Float64, LONG)
-	qN_mem = zeros(Float64, LONG)
-	qN_p_mem = zeros(Float64, LONG)
-	qN_pp_mem = zeros(Float64, LONG)
+	time_mem = zeros(Float64, N)
+	q_mem = zeros(Float64, N)
+	q_p_mem = zeros(Float64, N)
+	q_pp_mem = zeros(Float64, N)
+	qN_mem = zeros(Float64, N)
+	qN_p_mem = zeros(Float64, N)
+	qN_pp_mem = zeros(Float64, N)
 
-	u_mem = zeros(Float64, LONG)
-	qDes_pp_mem = zeros(Float64, LONG)
-	qDef_pp_mem = zeros(Float64, LONG)
+	u_mem = zeros(Float64, N)
+	qDes_pp_mem = zeros(Float64, N)
+	qDef_pp_mem = zeros(Float64, N)
 
 	# initial conditions
 	q_mem[1] = q0
 	q_p_mem[1] = q_p0
 	q_pp_mem[1] = -p.Amp * p.ω^2 * sin(p.ω * δt)
-
 	max_index = 1
 	h_int = 0.0
 	l = LONG - 1
-	for t in LONG
-		time_mem[t] = t * δt
+	for t in 1:l
+		time_mem[t] = (t - 1) * δt
 
 		qN_mem[t], qN_p_mem[t], qN_pp_mem[t] = nominalTraj(p, time_mem[t])
 
