@@ -1,7 +1,7 @@
 # Main entry: include model files and run selected simulations
 using PyPlot
 using Pkg
-PyPlot.matplotlib.use("TkAgg")
+PyPlot.matplotlib.use("Qt5Agg")
 Pkg.activate(".")
 # Toggle which simulations to run (1 = run, 0 = skip)
 run_duffing = 1
@@ -10,7 +10,7 @@ run_rossler = 0
 run_vanderpol = 0
 
 # Include model source files
-# include("my_duffing.jl")
+include("my_duffing.jl")
 # include("my_lorenz.jl")
 # include("my_rossler.jl")
 # include("my_vanderpool.jl")
