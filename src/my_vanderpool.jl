@@ -1,7 +1,7 @@
 using PyPlot
 using Pkg
-PyPlot.matplotlib.use("TkAgg")
 Pkg.activate(".")
+# PyPlot.matplotlib.use("TkAgg")
 ####################################################
 # Van der Pol Oscillator Controlled by RFPT o VSSM #
 ####################################################
@@ -297,7 +297,6 @@ t_range = 0:δranget:t_max
 ##############
 # Simulation #
 ##############
-using PyPlot
 using PDFmerger
 using Dates
 run_simulation(q_mem[1], q_p_mem[1], q_pp_mem[1], init_Amp, init_ω, t_range)
