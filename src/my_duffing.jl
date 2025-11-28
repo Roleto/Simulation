@@ -28,9 +28,10 @@ Usage (from your main.jl or REPL):
 
 module DuffingModule
 
+include(joinpath(@__DIR__, "..", "scripts", "PDFmerger.jl"))
+using .PDFmerger
 using Dates
 using PyPlot
-using DelimitedFiles
 
 export DuffingParams, duffing_single_run, grid_search, simulate_duffing
 
@@ -176,6 +177,10 @@ function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot:
 		plot(time_mem[1:l], qN_mem[1:l], label = "Nominális")
 		plot(time_mem[1:l], q_mem[1:l], linestyle = "--", label = "Megvalósult")
 		legend(loc = 1)
+		if (p.save_pdf)
+			savefig("temp_duffing.pdf")
+			append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
+		end
 
 		# Acceleration
 		figure("Acceleration")
@@ -189,6 +194,11 @@ function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot:
 		plot(time_mem[1:l], qDes_pp_mem[1:l], linestyle = "-.", label = "Desired")
 		legend(loc = 1)
 
+		if (p.save_pdf)
+			savefig("temp_duffing.pdf")
+			append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
+		end
+
 		# Tracking error
 		figure("Tracking_Error")
 		clf()
@@ -198,6 +208,11 @@ function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot:
 		ylabel("Követési hiba [m]")
 		plot(time_mem[1:l], qN_mem[1:l] .- q_mem[1:l], label = "Hiba")
 		legend(loc = 1)
+
+		if (p.save_pdf)
+			savefig("temp_duffing.pdf")
+			append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
+		end
 
 		# Phase space
 		figure("Phase_Space")
@@ -209,15 +224,29 @@ function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot:
 		plot(qN_mem[1:l], qN_p_mem[1:l], label = "Nominális")
 		plot(q_mem[1:l], q_p_mem[1:l], linestyle = "--", label = "Megvalósult")
 		legend(loc = 1)
+		if (p.save_pdf)
+			savefig("temp_duffing.pdf")
+			append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
+		end
 
 		if p.save_pdf
-			# combine and save a timestamped PDF
 			try
+				# timestamp
 				ts = Dates.format(now(), "yyyy-mm-dd_HHMMSS")
-				fname = joinpath(p.pdf_dir, "duffing_$(ts).pdf")
-				# ensure directory
+
+				# Ensure output dir exists
 				isdir(p.pdf_dir) || mkpath(p.pdf_dir)
-				savefig(fname)
+
+				# Path of the merged PDF in project root
+				project_root = normpath(joinpath(@__DIR__, ".."))
+				merged_pdf = joinpath(project_root, "allplots_duffing.pdf")
+
+				# Expected final file
+				final_pdf = joinpath(p.pdf_dir, "duffing_$(ts).pdf")
+
+				# MOVE the merged file → correct location!
+				mv(merged_pdf, final_pdf; force = true)
+
 			catch e
 				@warn "Could not save PDF: $e"
 			end

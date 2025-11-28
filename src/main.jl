@@ -6,9 +6,9 @@ PyPlot.matplotlib.use("Qt5Agg")
 
 # Toggle which simulations to run (1 = run, 0 = skip)
 run_duffing = 1
-run_lorenz = 1
-run_rossler = 1
-run_vanderpol = 1
+run_lorenz = 0
+run_rossler = 0
+run_vanderpol = 0
 
 
 # Execute simulations (each file currently auto-runs on include; optional explicit calls)
@@ -18,15 +18,17 @@ if run_duffing == 1
 	println("Running Duffing single run...")
 
 	# egyszerű hívás
-	err = duffing_single_run(6.5, 1.0; do_plot = true)
-	println("Max követési hiba: ", err)
+	# err = duffing_single_run(6.5, 1.0; do_plot = true)
+	# println("Max követési hiba: ", err)
 
 	# saját paraméter
-	# p = DuffingParams()
-	# p.δt = 1e-3
-	# p.N = Int(2e4)
-	# p.save_pdf = false
-	# p.pdf_dir = "data/Duffing/"
+	p = DuffingParams()
+	p.δt = 1e-3
+	p.N = Int(2e4)
+	p.save_pdf = true
+
+	err = duffing_single_run(p, 0.0, 0.0; do_plot = true)
+
 	# q_range = -120:1:120.0
 	# n = length(q_range)
 
