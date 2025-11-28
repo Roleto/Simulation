@@ -14,19 +14,24 @@
 # ż=xy-βz    #
 ##############
 
+using PyPlot
+using Pkg
+PyPlot.matplotlib.use("TkAgg")
+Pkg.activate(".")
 using LinearAlgebra
 using PyPlot
 
-adaptive = 1  # RFPT
-robust = 1    # VSSM
-plotting = 1  # was Ploting
-# always single run; multi-run logic removed
+Adaptive = 1  #RFPT
+Robust = 1    #VSSM
+Ploting = 1
+SingleRun = 1
 #################
 # Time variable #
 #################
 δt = 1e-2
-N = Int(2e4)
-last_idx = N - 1
+LONG = Int(2e4)
+# LONG_ZOOM = Int(1.5e3 * 0.75)
+l = LONG - 1
 
 ######################
 # Control Parameters #
@@ -66,80 +71,81 @@ A₃ = 1
 σₐ = 4
 ρₐ = 36
 
-time_mem = zeros(N)
+time_mem = zeros(LONG)
 
-"""Nominal trajectory arrays (position, velocity, acceleration)"""
-x_nom_pos = zeros(N)
-x_nom_vel = zeros(N)
-x_nom_acc = zeros(N)
+# Nominal Trajectory
+xN = zeros(LONG)
+xN_p = zeros(LONG)
+xN_pp = zeros(LONG)
 
-y_nom_pos = zeros(N)
-y_nom_vel = zeros(N)
-y_nom_acc = zeros(N)
+yN = zeros(LONG)
+yN_p = zeros(LONG)
+yN_pp = zeros(LONG)
 
-z_nom_pos = zeros(N)
-z_nom_vel = zeros(N)
-z_nom_acc = zeros(N)
+zN = zeros(LONG)
+zN_p = zeros(LONG)
+zN_pp = zeros(LONG)
 
-"""Desired velocities (first derivative)"""
-x_des_vel = zeros(N)
-y_des_vel = zeros(N)
-z_des_vel = zeros(N)
+# Desired
+xDes_p = zeros(LONG)
+yDes_p = zeros(LONG)
+zDes_p = zeros(LONG)
 
-"""Deformed (adaptive) velocities and accelerations"""
-x_def_vel = zeros(N)
-y_def_vel = zeros(N)
-z_def_vel = zeros(N)
+# xDes_pp = zeros(LONG)
+# yDes_pp = zeros(LONG)
+# zDes_pp = zeros(LONG)
 
-x_def_acc = zeros(N)
-y_def_acc = zeros(N)
-z_def_acc = zeros(N)
+# Deformed
+xDef_p = zeros(LONG)
+yDef_p = zeros(LONG)
+zDef_p = zeros(LONG)
 
-"""Control signals"""
-u_x = zeros(N)
-u_y = zeros(N)
-u_z = zeros(N)
+xDef_pp = zeros(LONG)
+yDef_pp = zeros(LONG)
+zDef_pp = zeros(LONG)
+
+# Control Signal
+u_x = zeros(LONG)
+u_y = zeros(LONG)
+u_z = zeros(LONG)
 
 
-x_pos = zeros(N)
-y_pos = zeros(N)
-z_pos = zeros(N)
+x_p = zeros(LONG)
+y_p = zeros(LONG)
+z_p = zeros(LONG)
 
-x_vel = zeros(N)
-y_vel = zeros(N)
-z_vel = zeros(N)
+x_pp = zeros(LONG)
+y_pp = zeros(LONG)
+z_pp = zeros(LONG)
 
-x_acc = zeros(N)
-y_acc = zeros(N)
-z_acc = zeros(N)
+x = zeros(LONG)
+y = zeros(LONG)
+z = zeros(LONG)
 
-S_x = zeros(N)
-S_p_x = zeros(N)
-S_y = zeros(N)
-S_p_y = zeros(N)
-S_z = zeros(N)
-S_p_z = zeros(N)
+S_x = zeros(LONG)
+S_p_x = zeros(LONG)
+S_y = zeros(LONG)
+S_p_y = zeros(LONG)
+S_z = zeros(LONG)
+S_p_z = zeros(LONG)
 
-past_inputs = zeros(Float64, N, 3)
-past_inputs_p = zeros(Float64, N, 3)
-past_responses = zeros(Float64, N, 3)
 past_input = zeros(3)
 past_input_p = zeros(3)
-past_inputs = zeros(Float64, N, 3)
-past_inputs_p = zeros(Float64, N, 3)
+past_inputs = zeros(Float64, LONG, 3)
+past_inputs_p = zeros(Float64, LONG, 3)
 past_response = zeros(3)
-past_responses = zeros(Float64, N, 3)
-realized_acc = zeros(Float64, N, 3)
+past_responses = zeros(Float64, LONG, 3)
+accelerations = zeros(Float64, LONG, 3)
 
-function error_metrics(h_int, err_pos, err_vel) # robust metric
-	S = Λ * h_int + err_pos
-	S_p = Λ * err_pos + err_vel
+function ErrorMetric(hint, h, h_p) # = Λ * hint + h
+	S = Λ * hint + h
+	S_p = Λ * h + h_p
 	return S, S_p
 end
 ###########
 # ACC itt #
 ###########
-function g_mimo(r_prev, r_prev_last, f_prev, des_now, err_limit, K, B, A)
+function G_MIMO(r_prev, r_prev_last, f_prev, des_now, err_limit, K, B, A)
 	Amatr_h = (f_prev - des_now)
 	error_norm = norm(Amatr_h)
 	if error_norm > err_limit
@@ -155,14 +161,14 @@ end
 
 function log()
 	date_string = Dates.format(now(), "mm-dd_HH-MM")
-	fileName = "./data/Lorenz/" * date_string * ".pdf"
+	fileName = "./Plots/Lorenz/" * date_string * ".pdf"
 	mv("allplots_lorenz.pdf", fileName)
-	file = open("./data/Lorenz/log.txt", "a")
+	file = open("./Plots/Lorenz/log.txt", "a")
 	line_breaker = "\n####################################################\n"
-	file_text = string(line_breaker, date_string, " Parameters:\nControl Params:\n",
+	file_text = string(line_breaker, date_string, " Következö paraméterekkel volt használva:\nControl Params:\n",
 		"K= ", K, "\tB= ", B, "\tA= ", A,
-		"\nTime:\nn=", N, "\tδt=", δt,
-		"\nKinematic Block:\nΛ=", Λ, "\tK_VSSM=", K_VSSM, "\tw=", w,
+		"\nTime Parameters:\nLONG=", LONG, "\tδt=", δt,
+		"\nKinematik Block parameters:\nΛ=", Λ, "\tK_VSSM=", K_VSSM, "\tw=", w,
 		"\nApproximate Model Parameters:\nβₐ=", βₐ, "\tσₐ=", σₐ, "\tρₐ=", ρₐ,
 		"\nExact Model Parameters:\nβₑ=", βₑ, "\tσₑ=", σₑ, "\tρₑ=", ρₑ,
 		"\nNominal Trajectory Parameters:\nω=", [ω₁, ω₂, ω₃], "\nAmp=", [A₁, A₂, A₃], line_breaker)
@@ -170,36 +176,39 @@ function log()
 	close(file)
 end
 
-function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, past_response, error_limit)
+function singlerun(hint_x, hint_y, hint_z, past_input, past_input_p, past_response, error_limit, idx, lastPlot = true)
 	print('.')
-	for t ∈ 1:last_idx
+	if (Ploting == 1 && SingleRun == 0 && lastPlot)
+		close("all")
+	end
+	for t ∈ 1:l
 		time_mem[t] = δt * t
 
 		#Nominal trajectory for the actual time frame
-		x_nom_pos[t] = A₁ * sin(ω₁ * time_mem[t])
-		x_nom_vel[t] = A₁ * ω₁ * cos(ω₁ * time_mem[t])
-		x_nom_acc[t] = -A₁ * ω₁^2 * sin(ω₁ * time_mem[t])
+		xN[t] = A₁ * sin(ω₁ * time_mem[t])
+		xN_p[t] = A₁ * ω₁ * cos(ω₁ * time_mem[t])
+		xN_pp[t] = -A₁ * ω₁^2 * sin(ω₁ * time_mem[t])
 
-		y_nom_pos[t] = A₂ * sin(ω₂ * time_mem[t])
-		y_nom_vel[t] = A₂ * ω₂ * cos(ω₂ * time_mem[t])
-		y_nom_acc[t] = -A₂ * ω₂^2 * sin(ω₂ * time_mem[t])
+		yN[t] = A₂ * sin(ω₂ * time_mem[t])
+		yN_p[t] = A₂ * ω₂ * cos(ω₂ * time_mem[t])
+		yN_pp[t] = -A₂ * ω₂^2 * sin(ω₂ * time_mem[t])
 
-		z_nom_pos[t] = A₃ * sin(ω₃ * time_mem[t])
-		z_nom_vel[t] = A₃ * ω₃ * cos(ω₃ * time_mem[t])
-		z_nom_acc[t] = -A₃ * ω₃^2 * sin(ω₃ * time_mem[t])
+		zN[t] = A₃ * sin(ω₃ * time_mem[t])
+		zN_p[t] = A₃ * ω₃ * cos(ω₃ * time_mem[t])
+		zN_pp[t] = -A₃ * ω₃^2 * sin(ω₃ * time_mem[t])
 
 		#Errors
-		err_x_pos = x_nom_pos[t] - x_pos[t]
-		err_y_pos = y_nom_pos[t] - y_pos[t]
-		err_z_pos = z_nom_pos[t] - z_pos[t]
+		h_x = xN[t] - x[t]
+		h_y = yN[t] - y[t]
+		h_z = zN[t] - z[t]
 
-		err_x_vel = x_nom_vel[t] - x_vel[t]
-		err_y_vel = y_nom_vel[t] - y_vel[t]
-		err_z_vel = z_nom_vel[t] - z_vel[t]
+		h_p_x = xN_p[t] - x_p[t]
+		h_p_y = yN_p[t] - y_p[t]
+		h_p_z = zN_p[t] - z_p[t]
 
-		if robust == 1
+		if Robust == 1
 			#the error metric
-			S, S_p = error_metrics([h_int_x, h_int_y, h_int_z], [err_x_pos, err_y_pos, err_z_pos], [err_x_vel, err_y_vel, err_z_vel])
+			S, S_p = ErrorMetric([hint_x, hint_y, hint_z], [h_x, h_y, h_z], [h_p_x, h_p_y, h_p_z])
 			S_x[t] = S[1]
 			S_y[t] = S[2]
 			S_z[t] = S[3]
@@ -209,32 +218,32 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 			S_p_z[t] = S_p[3]
 
 			#kinblock
-			x_des_vel[t] = x_nom_vel[t] + Λ * err_x_pos + K_VSSM * tanh(S_x[t] / w)
-			y_des_vel[t] = y_nom_vel[t] + Λ * err_y_pos + K_VSSM * tanh(S_y[t] / w)
-			z_des_vel[t] = z_nom_vel[t] + Λ * err_z_pos + K_VSSM * tanh(S_z[t] / w)
+			xDes_p[t] = xN_p[t] + Λ * h_x + K_VSSM * tanh(S_x[t] / w)
+			yDes_p[t] = yN_p[t] + Λ * h_y + K_VSSM * tanh(S_y[t] / w)
+			zDes_p[t] = zN_p[t] + Λ * h_z + K_VSSM * tanh(S_z[t] / w)
 
 			# xDes_pp[t] = xN_pp[t] + Λ * h_p_x + K_VSSM * (1 / w * sech(S_x[t] / w)^2 * S_p_x[t])
 			# yDes_pp[t] = yN_pp[t] + Λ * h_p_y + K_VSSM * (1 / w * sech(S_y[t] / w)^2 * S_p_y[t])
 			# zDes_pp[t] = zN_pp[t] + Λ * h_p_z + K_VSSM * (1 / w * sech(S_z[t] / w)^2 * S_p_z[t])
 
-			desired = [x_des_vel[t], y_des_vel[t], z_des_vel[t]]
+			desired = [xDes_p[t], yDes_p[t], zDes_p[t]]
 
 		else
 
 			#kinblock
-			x_des_vel[t] = Λ^2 * h_int_x + 2 * Λ * err_x_pos + x_nom_vel[t]
-			y_des_vel[t] = Λ^2 * h_int_y + 2 * Λ * err_y_pos + y_nom_vel[t]
-			z_des_vel[t] = Λ^2 * h_int_z + 2 * Λ * err_z_pos + z_nom_vel[t]
+			xDes_p[t] = Λ^2 * hint_x + 2 * Λ * h_x + xN_p[t]
+			yDes_p[t] = Λ^2 * hint_y + 2 * Λ * h_y + yN_p[t]
+			zDes_p[t] = Λ^2 * hint_z + 2 * Λ * h_z + zN_p[t]
 
-			desired = [x_des_vel[t], y_des_vel[t], z_des_vel[t]]
+			desired = [xDes_p[t], yDes_p[t], zDes_p[t]]
 		end
 
 		# Deformation
-		if adaptive == 1 && t > 4
+		if Adaptive == 1 && t > 4
 			###########
 			# ACC itt #
 			###########
-			past_input, past_input_p = g_mimo(past_input, past_input_p, past_response, desired, error_limit, K, B, A)
+			past_input, past_input_p = G_MIMO(past_input, past_input_p, past_response, desired, error_limit, K, B, A)
 		else
 			past_input_p = past_input
 			past_input = desired
@@ -243,44 +252,44 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 		past_inputs[t, :] = past_input
 		past_inputs_p[t, :] = past_input_p
 
-		x_def_vel[t] = past_input[1]
-		y_def_vel[t] = past_input[2]
-		z_def_vel[t] = past_input[3]
+		xDef_p[t] = past_input[1]
+		yDef_p[t] = past_input[2]
+		zDef_p[t] = past_input[3]
 
 		###########
 		# ACC itt #
 		###########
-		x_def_acc[t] = past_input_p[1]
-		y_def_acc[t] = past_input_p[2]
-		z_def_acc[t] = past_input_p[3]
+		xDef_pp[t] = past_input_p[1]
+		yDef_pp[t] = past_input_p[2]
+		zDef_pp[t] = past_input_p[3]
 
 		#Control Signal
-		u_x[t] = x_def_vel[t] - σₐ * (y_pos[t] - x_pos[t])
-		u_y[t] = y_def_vel[t] - x_pos[t] * (ρₐ - z_pos[t]) + y_pos[t]
-		u_z[t] = z_def_vel[t] - x_pos[t] * y_pos[t] + βₐ * z_pos[t]
+		u_x[t] = xDef_p[t] - σₐ * (y[t] - x[t])
+		u_y[t] = yDef_p[t] - x[t] * (ρₐ - z[t]) + y[t]
+		u_z[t] = zDef_p[t] - x[t] * y[t] + βₐ * z[t]
 
 		#System
-		x_vel[t] = σₑ * (y_pos[t] - x_pos[t]) + u_x[t]
-		y_vel[t] = x_pos[t] * (ρₑ - z_pos[t]) - y_pos[t] + u_y[t]
-		z_vel[t] = x_pos[t] * y_pos[t] - βₑ * z_pos[t] + u_z[t]
-		past_response = [x_vel[t], y_vel[t], z_vel[t]]
+		x_p[t] = σₑ * (y[t] - x[t]) + u_x[t]
+		y_p[t] = x[t] * (ρₑ - z[t]) - y[t] + u_y[t]
+		z_p[t] = x[t] * y[t] - βₑ * z[t] + u_z[t]
+		past_response = [x_p[t], y_p[t], z_p[t]]
 		past_responses[t, :] = past_response
 
 		#Acceleration
-		x_acc[t] = (σₑ - σₐ) * (y_vel[t] - x_vel[t]) + x_def_acc[t]
-		y_acc[t] = (ρₑ - ρₐ) * x_vel[t] + y_def_acc[t]
-		z_acc[t] = (βₐ - βₑ) * z_vel[t] + z_def_acc[t]
-		realized_acc[t, :] = [x_acc[t], y_acc[t], z_acc[t]]
+		x_pp[t] = (σₑ - σₐ) * (y_p[t] - x_p[t]) + xDef_pp[t]
+		y_pp[t] = (ρₑ - ρₐ) * x_p[t] + yDef_pp[t]
+		z_pp[t] = (βₐ - βₑ) * z_p[t] + zDef_pp[t]
+		accelerations[t, :] = [x_pp[t], y_pp[t], z_pp[t]]
 
 
 		#Integrals
-		x_pos[t+1] = x_pos[t] + δt * x_vel[t]
-		y_pos[t+1] = y_pos[t] + δt * y_vel[t]
-		z_pos[t+1] = z_pos[t] + δt * z_vel[t]
+		x[t+1] = x[t] + δt * x_p[t]
+		y[t+1] = y[t] + δt * y_p[t]
+		z[t+1] = z[t] + δt * z_p[t]
 
-		h_int_x = h_int_x + δt * err_x_pos
-		h_int_y = h_int_y + δt * err_y_pos
-		h_int_z = h_int_z + δt * err_z_pos
+		hint_x = hint_x + δt * h_x
+		hint_y = hint_y + δt * h_y
+		hint_z = hint_z + δt * h_z
 	end
 
 
@@ -298,16 +307,16 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 
 	ylabel("X [m]")
 
-	plot(time_mem[1:last_idx], x_nom_pos[1:last_idx], color = "#D55E00", linewidth = 1.5, label = "Nominális", alpha = 0.8)
-	plot(time_mem[1:last_idx], x_pos[1:last_idx], linestyle = "--", color = "#009E73", linewidth = 2.5, label = "Megvalósult", alpha = 0.8)
+	plot(time_mem[1:l], xN[1:l], color = "#D55E00", linewidth = 1.5, label = "Nominális", alpha = 0.8)
+	plot(time_mem[1:l], x[1:l], linestyle = "--", color = "#009E73", linewidth = 2.5, label = "Megvalósult", alpha = 0.8)
 	# fill_between(time_mem[1:l], xN[1:l], x[1:l], color = "gray", alpha = 0.3, label = "Error Band X")
 
 	subplot(312, sharex = ax1)
 	ax2 = gca()
 	grid(true)
 	ylabel("Y [m]")
-	plot(time_mem[1:last_idx], y_nom_pos[1:last_idx], color = "#D55E00", linewidth = 1.5, label = "Nominális")
-	plot(time_mem[1:last_idx], y_pos[1:last_idx], linestyle = "--", color = "#009E73", linewidth = 2.5, label = "Megvalósult", alpha = 0.8)
+	plot(time_mem[1:l], yN[1:l], color = "#D55E00", linewidth = 1.5, label = "Nominális")
+	plot(time_mem[1:l], y[1:l], linestyle = "--", color = "#009E73", linewidth = 2.5, label = "Megvalósult", alpha = 0.8)
 	# fill_between(time_mem[1:l], yN[1:l], x[1:l], color = "gray", alpha = 0.3, label = "Error Band Y ")
 
 	subplot(313, sharex = ax2)
@@ -315,8 +324,8 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 	grid(true)
 	xlabel("Idő [s]")
 	ylabel("Z [m]")
-	plot(time_mem[1:last_idx], z_nom_pos[1:last_idx], color = "#D55E00", linewidth = 1.5, label = "Nominális")
-	plot(time_mem[1:last_idx], z_pos[1:last_idx], linestyle = "--", color = "#009E73", linewidth = 2.5, label = "Megvalósult", alpha = 0.8)
+	plot(time_mem[1:l], zN[1:l], color = "#D55E00", linewidth = 1.5, label = "Nominális")
+	plot(time_mem[1:l], z[1:l], linestyle = "--", color = "#009E73", linewidth = 2.5, label = "Megvalósult", alpha = 0.8)
 	# fill_between(time_mem[1:l], zN[1:l], x[1:l], color = "gray", alpha = 0.3, label = "Error Band Z")
 
 	handles, labels = ax1.get_legend_handles_labels()
@@ -330,8 +339,8 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 	fig = figure("Trajectory_tracking_3D")
 	title("Nominális és Megvalósult Pályák 3D")
 	grid(true)
-	plot3D(x_nom_pos[1:last_idx], y_nom_pos[1:last_idx], z_nom_pos[1:last_idx], color = "red", label = "Nominális")
-	plot3D(x_pos[1:last_idx], y_pos[1:last_idx], z_pos[1:last_idx], color = "green", label = "Megvalósult", linestyle = "--")
+	plot3D(xN[1:l], yN[1:l], zN[1:l], color = "red", label = "Nominális")
+	plot3D(x[1:l], y[1:l], z[1:l], color = "green", label = "Megvalósult", linestyle = "--")
 	legend(loc = 1, borderaxespad = 0)
 
 	#######################
@@ -347,8 +356,8 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 	grid1 = grid(true)
 	ylabel("X [m/s]")
 
-	plot(time_mem[1:last_idx], past_responses[1:last_idx, 1], color = "green", linewidth = 3, label = "Megvalósult", linestyle = "--")
-	plot(time_mem[1:last_idx], x_nom_vel[1:last_idx], color = "red", linewidth = 2, label = "Nominális")
+	plot(time_mem[1:l], past_responses[1:l, 1], color = "green", linewidth = 3, label = "Megvalósult", linestyle = "--")
+	plot(time_mem[1:l], xN_p[1:l], color = "red", linewidth = 2, label = "Nominális")
 	# plot(time_mem[1:l], past_inputs[1:l, 1], color = "blue", label = L"\dot{x}^{Des}", linestyle = "-.")
 
 	subplot(312, sharex = ax1)
@@ -356,8 +365,8 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 	grid(true)
 	ylabel("Y [m/s]")
 
-	plot(time_mem[1:last_idx], y_nom_vel[1:last_idx], color = "red", linewidth = 2, label = "Nominális")
-	plot(time_mem[1:last_idx], past_responses[1:last_idx, 2], color = "green", linewidth = 3, label = "Megvalósult", linestyle = "--")
+	plot(time_mem[1:l], yN_p[1:l], color = "red", linewidth = 2, label = "Nominális")
+	plot(time_mem[1:l], past_responses[1:l, 2], color = "green", linewidth = 3, label = "Megvalósult", linestyle = "--")
 	# plot(time_mem[1:l], past_inputs[1:l, 2], color = "blue", label = L"\dot{y}^{Des}", linestyle = "-.")
 
 	subplot(313, sharex = ax2)
@@ -365,8 +374,8 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 	grid(true)
 	xlabel("Idő [s]")
 	ylabel("Z [m/s]")
-	plot(time_mem[1:last_idx], z_nom_vel[1:last_idx], color = "red", linewidth = 2, label = "Nominális")
-	plot(time_mem[1:last_idx], past_responses[1:last_idx, 3], color = "green", linewidth = 3, label = "Megvalósult", linestyle = "--")
+	plot(time_mem[1:l], zN_p[1:l], color = "red", linewidth = 2, label = "Nominális")
+	plot(time_mem[1:l], past_responses[1:l, 3], color = "green", linewidth = 3, label = "Megvalósult", linestyle = "--")
 	# plot(time_mem[1:l], past_inputs[1:l, 3], color = "blue", label = "Desired", linestyle = "-.")
 	legend(loc = "lower left", fancybox = "True")
 
@@ -391,8 +400,8 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 	ylabel("X [m/s²]")
 
 
-	plot(time_mem[1:last_idx], x_nom_acc[1:last_idx], color = "red", linewidth = 2, label = "Nominális")
-	plot(time_mem[1:last_idx], realized_acc[1:last_idx, 1], color = "green", linewidth = 3, label = "Megvalósult", linestyle = "--")
+	plot(time_mem[1:l], xN_pp[1:l], color = "red", linewidth = 2, label = "Nominális")
+	plot(time_mem[1:l], accelerations[1:l, 1], color = "green", linewidth = 3, label = "Megvalósult", linestyle = "--")
 	# plot(time_mem[1:l], past_inputs_p[1:l, 1], color = "blue", label = L"\ddot{x}^{Des}", linestyle = "-.")
 
 	subplot(312, sharex = ax1)
@@ -400,8 +409,8 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 	grid(true)
 	ylabel("Y [m/s²]")
 
-	plot(time_mem[1:last_idx], y_nom_acc[1:last_idx], color = "red", linewidth = 2, label = "Nominális")
-	plot(time_mem[1:last_idx], realized_acc[1:last_idx, 2], color = "green", linewidth = 3, label = "Megvalósult", linestyle = "--")
+	plot(time_mem[1:l], yN_pp[1:l], color = "red", linewidth = 2, label = "Nominális")
+	plot(time_mem[1:l], accelerations[1:l, 2], color = "green", linewidth = 3, label = "Megvalósult", linestyle = "--")
 	# plot(time_mem[1:l], past_inputs_p[1:l, 2], color = "blue", label = L"\ddot{y}^{Des}", linestyle = "-.")
 
 	subplot(313, sharex = ax2)
@@ -409,8 +418,8 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 	grid(true)
 	xlabel("Idő [s]")
 	ylabel("Z [m/s²]")
-	plot(time_mem[1:last_idx], z_nom_acc[1:last_idx], color = "red", linewidth = 2, label = "Nominális")
-	plot(time_mem[1:last_idx], realized_acc[1:last_idx, 3], color = "green", linewidth = 3, label = "Megvalósult", linestyle = "--")
+	plot(time_mem[1:l], zN_pp[1:l], color = "red", linewidth = 2, label = "Nominális")
+	plot(time_mem[1:l], accelerations[1:l, 3], color = "green", linewidth = 3, label = "Megvalósult", linestyle = "--")
 	# plot(time_mem[1:l], past_inputs_p[1:l, 3], color = "blue", label = "Desired", linestyle = "-.")
 	handles, labels = ax1.get_legend_handles_labels()
 	fig.legend(handles, labels, loc = "lower center", bbox_to_anchor = (0.5, -0.01), ncol = 2)
@@ -435,21 +444,21 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 	grid1 = grid(true)
 	title("Követési Hibák az Idő Függvényében")
 	ylabel("X [m]")
-	plot(time_mem[1:last_idx], x_nom_pos[1:last_idx] - x_pos[1:last_idx], color = "red", linewidth = 2)
+	plot(time_mem[1:l], xN[1:l] - x[1:l], color = "red", linewidth = 2)
 	# fill_between(time_mem[1:l], xN[1:l], x[1:l], color = "gray", alpha = 0.3)
 
 	subplot(312, sharex = ax1)
 	ax2 = gca()
 	grid(true)
 	ylabel("Y [m]")
-	plot(time_mem[1:last_idx], y_nom_pos[1:last_idx] - y_pos[1:last_idx], color = "red", linewidth = 2)
+	plot(time_mem[1:l], yN[1:l] - y[1:l], color = "red", linewidth = 2)
 
 	subplot(313, sharex = ax2)
 	ax3 = gca()
 	grid(true)
 	xlabel("Idő [s]")
 	ylabel("Z [m]")
-	plot(time_mem[1:last_idx], z_nom_pos[1:last_idx] - z_pos[1:last_idx], color = "red", linewidth = 2)
+	plot(time_mem[1:l], zN[1:l] - z[1:l], color = "red", linewidth = 2)
 
 	# legend(loc = "lower left", fancybox = "True")
 	tight_layout()
@@ -470,9 +479,9 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 	xlabel("Idő [s]")
 	ylabel("Irányítójel [N]")
 
-	plot(time_mem[1:last_idx], u_x[1:last_idx], color = "red", label = L"$u_x$")
-	plot(time_mem[1:last_idx], u_y[1:last_idx], color = "green", label = L"$u_y$", linestyle = "--")
-	plot(time_mem[1:last_idx], u_z[1:last_idx], color = "blue", label = L"$u_z$")
+	plot(time_mem[1:l], u_x[1:l], color = "red", label = L"$u_x$")
+	plot(time_mem[1:l], u_y[1:l], color = "green", label = L"$u_y$", linestyle = "--")
+	plot(time_mem[1:l], u_z[1:l], color = "blue", label = L"$u_z$")
 
 	legend(loc = "lower left", fancybox = "True")
 	legend()
@@ -492,8 +501,8 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 	title("Fázis tér X irányban")
 	xlabel("Pozíció [m]")
 	ylabel("Sebesség [m/s]")
-	plot(x_vel[1:last_idx], x_pos[1:last_idx], color = "green", linewidth = 2.5, label = "Megvalósult", linestyle = "--")
-	plot(x_nom_vel[1:last_idx], x_nom_pos[1:last_idx], color = "red", linewidth = 2, label = "Nominális")
+	plot(x_p[1:l], x[1:l], color = "green", linewidth = 2.5, label = "Megvalósult", linestyle = "--")
+	plot(xN_p[1:l], xN[1:l], color = "red", linewidth = 2, label = "Nominális")
 	legend(loc = "lower left", fancybox = "True")
 	tight_layout()
 
@@ -506,8 +515,8 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 	title("Fázis tér Y irányban")
 	xlabel("Pozíció [m]")
 	ylabel("Sebesség [m/s]")
-	plot(y_vel[1:last_idx], y_pos[1:last_idx], color = "green", linewidth = 2.5, linestyle = "--", label = "Megvalósult")
-	plot(y_nom_vel[1:last_idx], y_nom_pos[1:last_idx], color = "red", linewidth = 2, label = "Nominális")
+	plot(y_p[1:l], y[1:l], color = "green", linewidth = 2.5, linestyle = "--", label = "Megvalósult")
+	plot(yN_p[1:l], yN[1:l], color = "red", linewidth = 2, label = "Nominális")
 
 	legend(loc = "lower left", fancybox = "True")
 	tight_layout()
@@ -522,44 +531,68 @@ function lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, 
 	title("Fázis tér Z irányban")
 	xlabel("Pozíció [m]")
 	ylabel("Sebesség [m/s]")
-	plot(z_vel[1:last_idx], z_pos[1:last_idx], color = "green", linewidth = 2.5, linestyle = "--", label = "Megvalósult")
-	plot(z_nom_vel[1:last_idx], z_nom_pos[1:last_idx], color = "red", linewidth = 2, label = "Nominális")
+	plot(z_p[1:l], z[1:l], color = "green", linewidth = 2.5, linestyle = "--", label = "Megvalósult")
+	plot(zN_p[1:l], zN[1:l], color = "red", linewidth = 2, label = "Nominális")
 	legend(loc = "lower left", fancybox = "True")
 	tight_layout()
 
 	savefig("temp_lorenz.pdf")
 	append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
-	date_string = Dates.format(now(), "mm-dd_HH-MM");
-	fileName = "./data/Lorenz/" * date_string * ".pdf";
-	mv("allplots_lorenz.pdf", fileName)
+
 
 end
 
-function simulate_lorenz()
-	# initial already set before call
-	lorenz_single_run(h_int_x, h_int_y, h_int_z, past_input, past_input_p, past_response, error_limit)
-	log()
-	if (plotting == 1)
+function run_simulation(q0, q_p0, q_pp0, init_Amp, init_ω, t_range)
+
+	if (SingleRun == 1)
+		x[1] = q0[1]
+		y[1] = q0[2]
+		z[1] = q0[3]
+		x_p[1] = q_p0[1]
+		y_p[1] = q_p0[2]
+		z_p[1] = q_p0[3]
+		x_pp[1] = q_pp0[1]
+		y_pp[1] = q_pp0[2]
+		z_pp[1] = q_pp0[3]
+		singlerun(hint_x, hint_y, hint_z, past_input, past_input_p, past_response, error_limit, 1)
+	else
+		# Define initial conditions: (q0, q_p0)
+		condition_q = init_Amp .* sin.(init_ω .* t_range)
+		condition_qp = init_Amp * init_ω .* cos.(init_ω .* t_range)
+		for (idx, (q0, q_p0)) in enumerate(zip(condition_q, condition_qp))
+			# Initialize memory arrays again for each run
+			x[1] = q0
+			y[1] = q0
+			z[1] = q0
+			x_p[1] = q_p0
+			y_p[1] = q_p0
+			z_p[1] = q_p0
+
+			singlerun(hint_x, hint_y, hint_z, past_input, past_input_p, past_response, error_limit, idx)
+		end
+	end
+	# log()
+	if (Ploting == 1 && SingleRun == 1)
 		show()
 	end
 end
 
 #initial conditions
-h_int_x = 0
-h_int_y = 0
-h_int_z = 0
+hint_x = 0
+hint_y = 0
+hint_z = 0
 
 error_limit = 1e-3
 
-x_pos[1] = A₁ * sin(ω₁ * δt)
-y_pos[1] = A₂ * sin(ω₂ * δt)
-z_pos[1] = A₃ * sin(ω₃ * δt)
-x_vel[1] = A₁ * ω₁ * cos(ω₁ * δt)
-y_vel[1] = A₂ * ω₂ * cos(ω₂ * δt)
-z_vel[1] = A₃ * ω₃ * cos(ω₃ * δt)
-x_acc[1] = -A₁ * ω₁^2 * sin(ω₁ * δt)
-y_acc[1] = -A₂ * ω₂^2 * sin(ω₂ * δt)
-z_acc[1] = -A₃ * ω₃^2 * sin(ω₃ * δt)
+x[1] = A₁ * sin(ω₁ * δt)
+y[1] = A₂ * sin(ω₂ * δt)
+z[1] = A₃ * sin(ω₃ * δt)
+x_p[1] = A₁ * ω₁ * cos(ω₁ * δt)
+y_p[1] = A₂ * ω₂ * cos(ω₂ * δt)
+z_p[1] = A₃ * ω₃ * cos(ω₃ * δt)
+x_pp[1] = -A₁ * ω₁^2 * sin(ω₁ * δt)
+y_pp[1] = -A₂ * ω₂^2 * sin(ω₂ * δt)
+z_pp[1] = -A₃ * ω₃^2 * sin(ω₃ * δt)
 # Setting initial condition
 t_max = 20.0
 init_ω = 0.5
@@ -571,5 +604,5 @@ t_range = 0:δranget:t_max
 
 using PDFmerger
 using Dates
-# simulate_lorenz()
+run_simulation((x[1], y[1], z[1]), (x_p[1], y_p[1], z_p[1]), (x_pp[1], y_pp[1], z_pp[1]), init_Amp, init_ω, t_range)
 show()
