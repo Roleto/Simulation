@@ -5,9 +5,9 @@ using PyPlot
 PyPlot.matplotlib.use("Qt5Agg")
 
 # Toggle which simulations to run (1 = run, 0 = skip)
-run_duffing = 0
-run_lorenz = 0
-run_rossler = 0
+run_duffing = 1
+run_lorenz = 1
+run_rossler = 1
 run_vanderpol = 1
 
 
@@ -19,6 +19,7 @@ if run_duffing == 1
 
 	# egyszerű hívás
 	err = duffing_single_run(6.5, 1.0; do_plot = true)
+	println("Max követési hiba: ", err)
 
 	# saját paraméter
 	# p = DuffingParams()

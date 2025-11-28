@@ -79,11 +79,11 @@ function LorenzParams(;
 	σa::Float64 = 4.0,
 	ρa::Float64 = 36.0,
 
-	save_pdf::Bool = false,
-	pdf_dir::String = "data/Lorenz",
-
 	Adaptive::Bool = true,
 	Robust::Bool = true,
+
+	save_pdf::Bool = false,
+	pdf_dir::String = "data/Lorenz",
 )
 	return LorenzParams(
 		δt, N,
@@ -92,8 +92,8 @@ function LorenzParams(;
 		A1, A2, A3, ω1, ω2, ω3,
 		βe, σe, ρe,
 		βa, σa, ρa,
-		save_pdf, pdf_dir,
 		Adaptive, Robust,
+		save_pdf, pdf_dir,
 	)
 end
 
@@ -372,7 +372,7 @@ function simulate_lorenz(p::LorenzParams,
 	end
 
 	# Plot
-	if p.do_plot
+	if do_plot
 		# Nominális és megvalósult pályák
 		fig_caption = "nominal_realized_trajectories"
 		fig = figure(fig_caption)
@@ -562,8 +562,11 @@ function simulate_lorenz(p::LorenzParams,
 		plot(yN_p[1:l], yN[1:l], color = "red", linewidth = 2, label = "Nominális")
 		legend(loc = "lower left", fancybox = "True")
 		tight_layout()
-		savefig("temp_lorenz.pdf")
-		append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
+
+		if (p.save_pdf)
+			savefig("temp_lorenz.pdf")
+			append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
+		end
 
 		fig_caption = "phase_trajectories_z"
 		figure(fig_caption)
