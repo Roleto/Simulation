@@ -1,305 +1,336 @@
+module VanDerPolModule
+
 using PyPlot
-using Pkg
-Pkg.activate(".")
-# PyPlot.matplotlib.use("TkAgg")
-####################################################
-# Van der Pol Oscillator Controlled by RFPT o VSSM #
-####################################################
-Adaptive = 1
-Robust = 1
-Ploting = 1
-SingleRun = 1
+using PDFmerger
+using Dates
 
-#########
-# Time  #
-#########
-δt = 1e-3
-LONG = Int(2e4)
-l = LONG - 1
+export VanDerPolParams, simulate_vanderpol, vanderpol_single_run
 
-######################
-# Control Parameters #
-######################
-K = 1e5
-B = -1
-A = 1e-5
+#######################
+# Paraméter struktúra #
+#######################
 
-########################################
-# Kinematic Block Parameter (2nd order)#
-########################################
-Λ = 1
-w = 1
-K_VSSM = 500
+mutable struct VanDerPolParams
+	# Time
+	δt::Float64
+	N::Int
 
-####################################
-# Parameters for Nominal Trajectory#
-####################################
-ω = 0.5
-Amp = 2
+	# Control params
+	K::Float64
+	B::Float64
+	A::Float64
 
-##########################
-# Exact Model Parameters #
-##########################
-mₑ = 1
-μₑ = 0.4
-ωₑ = 0.46
-αₑ = 1
-λₑ = 0.1
+	# Kinematic block
+	Λ::Float64
+	w::Float64
+	K_VSSM::Float64  # bent hagyom, ha később használni szeretnéd
 
-################################
-# Approximate Model Parameters #
-################################
-mₐ = 0.8
-μₐ = 0.5
-ωₐ = 0.42
-αₐ = 0.9
-λₐ = 0.09
-ll = 0.015
+	# Nominal trajectory
+	ω::Float64
+	Amp::Float64
 
-ErrorMetrics(h_int, h, h_p) = Λ^2 * h_int + 2 * Λ * h + h_p
-KinBlock(S, h, h_p, qN_pp) = K * tanh(S / w) + Λ^2 * h + 2 * Λ * h_p + qN_pp
+	# Exact model params
+	mₑ::Float64
+	μₑ::Float64
+	ωₑ::Float64
+	αₑ::Float64
+	λₑ::Float64
 
-function Exact(u, q, q_p)
-	q_pp = (u + μₑ * (1 - q^2) * q_p - ωₑ^2 * q - αₑ * q^3 - λₑ * q^5) / mₑ
-	return q_pp
+	# Approx model params
+	mₐ::Float64
+	μₐ::Float64
+	ωₐ::Float64
+	αₐ::Float64
+	λₐ::Float64
+	ll::Float64
+
+	# Flags
+	Adaptive::Bool
+	Robust::Bool
+
+	# Output
+	save_pdf::Bool
+	pdf_dir::String
 end
 
-# function Approx(q, q_p, q_pp)
-function Approx(q_pp)
-	u = mₐ * q_pp# - μₐ * (1 - q^2) * q_p + ωₐ^2 * q + αₐ * q^3 + λₐ * q^5
-	return u * ll
+function VanDerPolParams(;
+	δt = 1e-3,
+	N   = Int(2e4),
+
+	K = 1e5,
+	B = -1.0,
+	A = 1e-5,
+
+	Λ = 1.0,
+	w = 1.0,
+	K_VSSM = 500.0,
+
+	ω = 0.5,
+	Amp = 2.0,
+
+	mₑ = 1.0,
+	μₑ = 0.4,
+	ωₑ = 0.46,
+	αₑ = 1.0,
+	λₑ = 0.1,
+
+	mₐ = 0.8,
+	μₐ = 0.5,
+	ωₐ = 0.42,
+	αₐ = 0.9,
+	λₐ = 0.09,
+	ll = 0.015,
+
+	Adaptive = true,
+	Robust = true,
+
+	save_pdf = false,
+	pdf_dir = "data/Vanderpol",
+)
+	return VanDerPolParams(
+		δt, N,
+		K, B, A,
+		Λ, w, K_VSSM,
+		ω, Amp,
+		mₑ, μₑ, ωₑ, αₑ, λₑ,
+		mₐ, μₐ, ωₐ, αₐ, λₐ, ll,
+		Adaptive, Robust,
+		save_pdf, pdf_dir,
+	)
 end
 
-function sigmoid(x)
-	s = x / (1 + abs(x))
-	return s
+###################
+# Segédfüggvények #
+###################
+
+ErrorMetrics(p::VanDerPolParams, h_int, h, h_p) =
+	p.Λ^2 * h_int + 2 * p.Λ * h + h_p
+
+KinBlock(p::VanDerPolParams, S, h, h_p, qN_pp) =
+	p.K * tanh(S / p.w) + p.Λ^2 * h + 2 * p.Λ * h_p + qN_pp
+
+function Exact(p::VanDerPolParams, u, q, q_p)
+	return (u + p.μₑ * (1 - q^2) * q_p - p.ωₑ^2 * q - p.αₑ * q^3 - p.λₑ * q^5) / p.mₑ
 end
 
-function G(past_input, past_response, xDnow)
-	out = (K + past_input) * (1 + B * tanh(A * (past_response - xDnow))) - K
-	return out
+function Approx(p::VanDerPolParams, q_pp)
+	u = p.mₐ * q_pp
+	return u * p.ll
 end
 
-function nominalTraj(t)
-	qN = Amp * sin(ω * t * δt)
-	q_pN = ω * Amp * cos(ω * t * δt)
-	q_ppN = -Amp * ω^2 * sin(ω * t * δt)
-	return [qN, q_pN, q_ppN]
+function G(p::VanDerPolParams, past_input, past_response, xDnow)
+	(p.K + past_input) * (1 + p.B * tanh(p.A * (past_response - xDnow))) - p.K
 end
-function log()
-	file = open("./Plots/Vanderpool/log.txt", "a")
-	line_breaker = "\n####################################################\n"
-	isAdaptiv = Bool(1 == Adaptive)
-	isRobust = Bool(1 == Robust)
-	date_string = Dates.format(now(), "mm-dd_HH-MM")
-	file_text = string(line_breaker, date_string, "Kezdőértékek: q0=", q_mem[1], "q_p0=", q_p_mem[1], "q_pp0=", q_pp_mem[1],
-		"\n Következö paraméterekkel volt használva:
-		\nAdaptiv=", isAdaptiv, "Robust=", isRobust, "\nControl Params:\n",
-		"K= ", K, "\tB= ", B, "\tA= ", A, "\tw= ", w, "\tΛ= ", Λ,
-		"\nTime variable :\nδt=", δt, "\t=LONG", LONG, "\n",
-		"\nApproximate Model Parameters:\nμₐ=", μₐ, "\tωₐ=", ωₐ, "\tαₐ=", αₐ, "\tλₐ=", λₐ, "\tmₐ=", mₐ, "\tll=", ll,
-		"\nExact Model Parameters:\nμₑ=", μₑ, "\tωₑ=", ωₑ, "\tαₑ=", αₑ, "\tλₑ=", λₑ, "\tmₑ=", mₑ,
-		"\nNominal Trajectory Parameters:\nω=", ω, "\tAmp=", Amp, line_breaker)
-	write(file, file_text)
-	close(file)
+
+function nominalTraj(p::VanDerPolParams, t_idx::Int)
+	τ = t_idx * p.δt
+	qN = p.Amp * sin(p.ω * τ)
+	q_pN = p.ω * p.Amp * cos(p.ω * τ)
+	q_ppN = -p.Amp * p.ω^2 * sin(p.ω * τ)
+	return qN, q_pN, q_ppN
 end
-function singlerun(h_int, q, q_p, q_pp, qN_p, qN_pp, u, idx, lastPlot = true)
-	print('.')
-	if (Ploting == 1 && SingleRun == 0 && lastPlot)
-		close("all")
+
+###########################
+# Fő szimulációs függvény #
+###########################
+
+"""
+simulate_vanderpol(p, q0, q_p0; q_pp0=nothing, do_plot=true)
+
+- p     : VanDerPolParams
+- q0    : kezdő pozíció
+- q_p0  : kezdő sebesség
+- q_pp0 : opcionális kezdő gyorsulás (ha nothing, akkor nominálisból számoljuk)
+- do_plot: ha true, kirajzol + (ha save_pdf) PDF-et is ment
+
+Visszatérés: egyetlen skalár hiba (Duffing-stílus, 1D eset)
+"""
+function simulate_vanderpol(p::VanDerPolParams,
+	q0::Real,
+	q_p0::Real;
+	q_pp0::Union{Nothing, Real} = nothing,
+	do_plot::Bool = true)
+
+	δt = p.δt
+	N = p.N
+	l = N - 1
+
+	# Memóriák
+	time_mem = zeros(Float64, N)
+	q_mem    = zeros(Float64, N)
+	q_p_mem  = zeros(Float64, N)
+	q_pp_mem = zeros(Float64, N)
+
+	qN_mem    = zeros(Float64, N)
+	qN_p_mem  = zeros(Float64, N)
+	qN_pp_mem = zeros(Float64, N)
+
+	u_mem = zeros(Float64, N)
+	qDes_pp_mem = zeros(Float64, N)
+	qDef_pp = zeros(Float64, N)
+
+	# Kezdeti feltételek
+	q_mem[1]   = float(q0)
+	q_p_mem[1] = float(q_p0)
+
+	if q_pp0 === nothing
+		q_pp_mem[1] = -p.Amp * p.ω^2 * sin(p.ω * p.δt)
+	else
+		q_pp_mem[1] = float(q_pp0)
 	end
-	for t ∈ 1:l
+
+	# hiba integrál
+	h_int = 0.0
+
+	# max_index inicializálás
+	max_index = 1
+
+	for t in 1:l
 		time_mem[t] = t * δt
 
-		#define the nominal trajectory
-		(qN_mem[t], qN_p[t], qN_pp[t]) = nominalTraj(t)
+		# nominális pálya
+		qN_mem[t], qN_p_mem[t], qN_pp_mem[t] = nominalTraj(p, t)
 
-		#Compute the Error
-		h = qN_mem[t] - q[t]
-		h_p = qN_p[t] - q_p[t]
+		# hiba
+		h   = qN_mem[t] - q_mem[t]
+		h_p = qN_p_mem[t] - q_p_mem[t]
 
-		#the kinematic block
-		if Robust == 1
-			S = Λ^2 * h_int + 2 * Λ * h + h_p
-			qDes_pp_mem[t] = KinBlock(S, h, h_p, qN_pp[t])
-			# K_VSSM * tanh(S / w) + Λ^2 * h + 2 * Λ * h_p + qN_pp[i]
+		# kinematikus blokk
+		if p.Robust
+			S = ErrorMetrics(p, h_int, h, h_p)
+			qDes_pp_mem[t] = KinBlock(p, S, h, h_p, qN_pp_mem[t])
 		else
-			qDes_pp_mem[t] = qN_pp[t] + Λ^3 * h_int + 3 * Λ^2 * h + 3 * Λ * h_p
+			qDes_pp_mem[t] = qN_pp_mem[t] + p.Λ^3 * h_int + 3 * p.Λ^2 * h + 3 * p.Λ * h_p
 		end
 
-		#Deformation
-		if Adaptive == 1 && t > 10
-			qDef_pp[t] = G(qDef_pp[t-1], q_pp[t-1], qDes_pp_mem[t])
+		# deformáció (adaptív G blokk)
+		if p.Adaptive && t > 10
+			qDef_pp[t] = G(p, qDef_pp[t-1], q_pp_mem[t-1], qDes_pp_mem[t])
 		else
 			qDef_pp[t] = qDes_pp_mem[t]
 		end
 
-		#Compute control signal
-		u[t] = Approx(qDef_pp[t])
+		# irányítójel
+		u_mem[t] = Approx(p, qDef_pp[t])
 
-		# Compute the exact systems's respons
-		q_pp[t] = Exact(u[t], q[t], q_p[t])
+		# rendszer válasza
+		q_pp_mem[t] = Exact(p, u_mem[t], q_mem[t], q_p_mem[t])
 
-		#Integrate back with Euler's method
-		q_p[t+1] = q_p[t] + δt * q_pp[t]
-		q[t+1] = q[t] + δt * q_p[t]
-		q_mem[t] = q[t]
-		h_int = h_int + δt * h
-	end
-	# Plotting 
+		# Euler integrálás
+		q_p_mem[t+1] = q_p_mem[t] + δt * q_pp_mem[t]
+		q_mem[t+1]   = q_mem[t] + δt * q_p_mem[t]
 
-	figure("Trajectory_tracking")
-	grid(true)
-	title("Pályakövetés az idő függvényében")
-	xlabel("Idő [s]")
-	ylabel("Pozíció [m]")
-	plot(time_mem[1:l], qN_mem[1:l], color = "red", label = "Nominális")
-	plot(time_mem[1:l], q_mem[1:l], color = "green", linestyle = "--", label = "Megvalósult")
-	legend(loc = 1, borderaxespad = 0)
-	savefig("allplots_vander.pdf")
+		# hiba integrál frissítése
+		h_int += δt * h
 
-	figure("Velocities")
-	grid(true)
-	title("Sebesség az idő függvényében")
-	xlabel("Idő [s]")
-	ylabel("Sebesség [m/s]")
-	plot(time_mem[1:l], qN_p[1:l], color = "red", label = "Nominális")
-	plot(time_mem[1:l], q_p_mem[1:l], color = "green", label = "Megvalósult", linestyle = "--")
-	legend(loc = 1, borderaxespad = 0)
-	savefig("temp_vander.pdf")
-	append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
-
-	figure("Accelerations")
-	grid(true)
-	title("Gyorsulás az idő függvényében")
-	xlabel("Idő [s]")
-	ylabel("Gyorsulás [m/s²]")
-	plot(time_mem[1:l], qN_pp[1:l], color = "red", label = "Nominális")
-	plot(time_mem[1:l], q_pp_mem[1:l], color = "green", label = "Megvalósult", linestyle = "--")
-	legend(loc = 1, borderaxespad = 0)
-	savefig("temp_vander.pdf")
-	append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
-
-	figure("Tracking_Error")
-	title("Követési hiba az idő függvényében")
-	grid(true)
-	xlabel("Idő [s]")
-	ylabel("Követési hiba [m]")
-	plot(time_mem[1:l], qN_mem[1:l] - q_mem[1:l], color = "red")
-	savefig("temp_vander.pdf")
-	append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
-
-	figure("Control_Signal")
-	title("Irányítójel az idő függvényében")
-	grid(true)
-	xlabel("Idő [s]")
-	ylabel("Irányítójel [N]")
-	plot(time_mem[1:l], u[1:l], color = "red")
-	savefig("temp_vander.pdf")
-	append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
-
-	figure("Phase_Space")
-	title("Fázistér")
-	xlabel("Pozíció [m]")
-	ylabel("Sebesség [m/s]")
-	grid(true)
-	plot(qN_p[1:l], qN_mem[1:l], color = "red", label = "Nominális")
-	plot(q_p_mem[1:l], q_mem[1:l], color = "green", linestyle = "--", label = "Megvalósult")
-	legend(loc = 1, borderaxespad = 0)
-	savefig("temp_vander.pdf")
-	append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
-
-	# date_string = Dates.format(now(), "mm-dd_HH-MM")
-	# fileName = "./Plots/Vanderpool/" * date_string * "_$idx.pdf"
-	# mv("allplots_vander.pdf", fileName)
-	# if (Ploting == 0 && lastPlot)
-	# 	close("all")
-	# 	figure("trajectoria")
-	# 	grid(true)
-	# 	title("Trajectory  Run 1 Robust = $Robust \n (q₀=$(q[1]), q̇₀=$(q_p[1]))")
-	# 	xlabel("Idő [s]")
-	# 	ylabel("position")
-	# 	plot(time_mem[1:l], qN_mem[1:l], color = "red", label = "Nominális")
-	# 	plot(time_mem[1:l], q_mem[1:l], color = "green", linestyle = "--", label = "Megvalósult")
-	# 	legend(loc = 1, borderaxespad = 0)
-	# 	savefig("./Plots/Vanderpool/TEMP/traj_run_$idx.png")
-	# 	show()
-	# end
-end
-
-function run_simulation(q0, q_p0, q_pp0, init_Amp, init_ω, t_range)
-	global time_mem = zeros(LONG)
-	global q_mem = zeros(LONG)
-	global q_p_mem = zeros(LONG)
-	global q_pp_mem = zeros(LONG)
-	global qN_mem = zeros(LONG)
-	global qN_p_mem = zeros(LONG)
-	global qN_pp_mem = zeros(LONG)
-	global h_int = 0
-	global u_mem = zeros(LONG)
-	if (SingleRun == 1)
-		q_mem[1] = q0
-		q_p_mem[1] = q_p0
-		q_pp_mem[1] = q_pp0
-		singlerun(h_int, q_mem, q_p_mem, q_pp_mem, qN_p_mem, qN_pp_mem, u_mem, 1)
-	else
-		# Define initial conditions: (q0, q_p0)
-		# condition_q = (+-)6.3:-0.1:(-+)6.3 ezeken belül stabil a basic beálításokkal
-		condition_q = init_Amp .* sin.(init_ω .* t_range)
-		condition_qp = init_Amp * init_ω .* cos.(init_ω .* t_range)
-		for (idx, (q0, q_p0)) in enumerate(zip(condition_q, condition_qp))
-			# Initialize memory arrays again for each run
-			q_mem[1] = q0
-			q_p_mem[1] = q_p0
-			singlerun(h_int, q_mem, q_p_mem, q_pp_mem, qN_p_mem, qN_pp_mem, u_mem, idx, (idx == length(condition_q)))
+		h_now = qN_mem[t] - q_mem[t]
+		h_max_now = qN_mem[max_index] - q_mem[max_index]
+		if (h_now * h_now) < (h_max_now * h_max_now)
+			max_index = t
 		end
 	end
-	# log()
-	if (Ploting == 1 && SingleRun == 1)
+
+	#Plotting
+	if do_plot
+		# Trajectory tracking
+		figure("Trajectory_tracking")
+		grid(true)
+		title("Pályakövetés az idő függvényében")
+		xlabel("Idő [s]")
+		ylabel("Pozíció [m]")
+		plot(time_mem[1:l], qN_mem[1:l], color = "red", label = "Nominális")
+		plot(time_mem[1:l], q_mem[1:l], color = "green", linestyle = "--", label = "Megvalósult")
+		legend(loc = 1, borderaxespad = 0)
+
+		if p.save_pdf
+			savefig("allplots_vander.pdf")
+		end
+
+		# Velocities
+		figure("Velocities")
+		grid(true)
+		title("Sebesség az idő függvényében")
+		xlabel("Idő [s]")
+		ylabel("Sebesség [m/s]")
+		plot(time_mem[1:l], qN_p_mem[1:l], color = "red", label = "Nominális")
+		plot(time_mem[1:l], q_p_mem[1:l], color = "green", linestyle = "--", label = "Megvalósult")
+		legend(loc = 1, borderaxespad = 0)
+
+		if p.save_pdf
+			savefig("temp_vander.pdf")
+			append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
+		end
+
+		# Accelerations
+		figure("Accelerations")
+		grid(true)
+		title("Gyorsulás az idő függvényében")
+		xlabel("Idő [s]")
+		ylabel("Gyorsulás [m/s²]")
+		plot(time_mem[1:l], qN_pp_mem[1:l], color = "red", label = "Nominális")
+		plot(time_mem[1:l], q_pp_mem[1:l], color = "green", linestyle = "--", label = "Megvalósult")
+		legend(loc = 1, borderaxespad = 0)
+
+		if p.save_pdf
+			savefig("temp_vander.pdf")
+			append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
+		end
+
+		# Tracking error
+		figure("Tracking_Error")
+		title("Követési hiba az idő függvényében")
+		grid(true)
+		xlabel("Idő [s]")
+		ylabel("Követési hiba [m]")
+		plot(time_mem[1:l], qN_mem[1:l] .- q_mem[1:l], color = "red")
+
+		if p.save_pdf
+			savefig("temp_vander.pdf")
+			append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
+		end
+
+		# Control signal
+		figure("Control_Signal")
+		title("Irányítójel az idő függvényében")
+		grid(true)
+		xlabel("Idő [s]")
+		ylabel("Irányítójel [N]")
+		plot(time_mem[1:l], u_mem[1:l], color = "red")
+
+		if p.save_pdf
+			savefig("temp_vander.pdf")
+			append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
+		end
+
+		# Phase space
+		figure("Phase_Space")
+		title("Fázistér")
+		xlabel("Pozíció [m]")
+		ylabel("Sebesség [m/s]")
+		grid(true)
+		plot(qN_p_mem[1:l], qN_mem[1:l], color = "red", label = "Nominális")
+		plot(q_p_mem[1:l], q_mem[1:l], color = "green", linestyle = "--", label = "Megvalósult")
+		legend(loc = 1, borderaxespad = 0)
+
+		if p.save_pdf
+			savefig("temp_vander.pdf")
+			append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
+
+			# timestampelt mentés
+			try
+				ts = Dates.format(now(), "yyyy-mm-dd_HHMMSS")
+				isdir(p.pdf_dir) || mkpath(p.pdf_dir)
+				fname = joinpath(p.pdf_dir, "vanderpol_$(ts).pdf")
+				savefig(fname)
+			catch e
+				@warn "Could not save PDF: $e"
+			end
+		end
+
 		show()
 	end
+
+	return abs(qN_mem[max_index] - q_mem[max_index])
 end
 
-##############################
-# Define arrays for Plotting #
-##############################
-
-time_mem = zeros(LONG) # t
-
-q_mem = zeros(LONG) #[q] A megvalósult pálya
-q_p_mem = zeros(LONG)
-q_pp_mem = zeros(LONG)
-
-qN_mem = zeros(LONG) #[qN] A nominális pálya
-qN_p_mem = zeros(LONG)
-qN_pp_mem = zeros(LONG)
-
-u_mem = zeros(LONG)  #[u] A szabályozó jel elmentése
-
-qDes_pp_mem = zeros(LONG) #[qDes_pp] A PID korrekciós adatok
-qDef_pp = zeros(LONG) #Az Adaptívan torzított jelre
-
-h_int = 0 #A követési hiba integrálja
-q_mem[1] = Amp * sin(ω * δt) # Kezdeti pozíció
-q_p_mem[1] = Amp * ω * cos(ω * δt) # Kezdeti sebesség
-q_pp_mem[1] = -Amp * ω^2 * sin(ω * δt)
-
-
-# Setting initial condition
-t_max = 20.0
-init_ω = 0.5
-init_Amp = 2
-
-# időlépések
-δranget = 1
-t_range = 0:δranget:t_max
-
-##############
-# Simulation #
-##############
-using PDFmerger
-using Dates
-run_simulation(q_mem[1], q_p_mem[1], q_pp_mem[1], init_Amp, init_ω, t_range)
-# run_simulation(1, 5, 2, init_Amp, init_ω, t_range)
-
-show()
+end # module
