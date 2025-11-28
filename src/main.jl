@@ -6,8 +6,8 @@ PyPlot.matplotlib.use("Qt5Agg")
 
 # Toggle which simulations to run (1 = run, 0 = skip)
 run_duffing = 0
-run_lorenz = 1
-run_rossler = 0
+run_lorenz = 0
+run_rossler = 1
 run_vanderpol = 0
 
 # Include model source files
@@ -15,7 +15,8 @@ include("my_duffing.jl")
 using .DuffingModule
 include("my_lorenz.jl")
 using .LorenzModule
-# include("my_rossler.jl")
+include("my_rossler.jl")
+using .RosslerModule
 # include("my_vanderpool.jl")
 
 # Execute simulations (each file currently auto-runs on include; optional explicit calls)
@@ -112,12 +113,17 @@ if run_lorenz == 1 && isdefined(@__MODULE__, :simulate_lorenz)
 	# q_pp0 = (0.0, 0.0, 0.0)
 
 	err = simulate_lorenz(p, q0, q_p0; do_plot = true)
-	# println("Max követési hiba: ", err)
+	println("Max követési hiba: ", err)
 end
 
 if run_rossler == 1 && isdefined(@__MODULE__, :simulate_rossler)
 	println("Running Rössler simulation...")
-	simulate_rossler() # already auto-run
+	p = RosslerParams()
+	q0 = (0.0, 0.0, 0.0)
+	q_p0 = (1.0, 1.0, 1.0)
+
+	err = simulate_rossler(p, q0, q_p0; do_plot = true)
+	println("Max követési hiba: ", err)
 end
 
 if run_vanderpol == 1 && isdefined(@__MODULE__, :vanderpol_single_run)

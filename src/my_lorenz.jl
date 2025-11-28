@@ -256,6 +256,7 @@ function simulate_lorenz(p::LorenzParams,
 	hint_z = 0.0
 
 	error_limit = 1e-3  # Hiba limit az adaptív blokkhoz
+	max_index = 1
 
 	for t ∈ 1:l
 		time_mem[t] = δt * t
@@ -277,6 +278,19 @@ function simulate_lorenz(p::LorenzParams,
 		h_x = xN[t] - x[t]
 		h_y = yN[t] - y[t]
 		h_z = zN[t] - z[t]
+
+		h2 = h_x*h_x + h_y*h_y + h_z*h_z
+
+		h_max_x = xN[max_index] - x[max_index]
+		h_max_y = yN[max_index] - y[max_index]
+		h_max_z = zN[max_index] - z[max_index]
+
+		h2_max = h_max_x*h_max_x + h_max_y*h_max_y + h_max_z*h_max_z
+
+		if h2 > h2_max
+			max_index = t
+		end
+
 
 		h_p_x = xN_p[t] - x_p[t]
 		h_p_y = yN_p[t] - y_p[t]
@@ -355,18 +369,6 @@ function simulate_lorenz(p::LorenzParams,
 		hint_x += δt * h_x
 		hint_y += δt * h_y
 		hint_z += δt * h_z
-	end
-
-	# Követési maximum hiba
-	max_err = 0.0
-	for t in 1:l
-		ex = xN[t] - x[t]
-		ey = yN[t] - y[t]
-		ez = zN[t] - z[t]
-		e_norm = sqrt(ex^2 + ey^2 + ez^2)
-		if e_norm > max_err
-			max_err = e_norm
-		end
 	end
 
 	# Plot
@@ -592,7 +594,11 @@ function simulate_lorenz(p::LorenzParams,
 		show()
 	end
 
-	return max_err
+	h_x = xN[max_index] - x[max_index]
+	h_y = yN[max_index] - y[max_index]
+	h_z = zN[max_index] - z[max_index]
+
+	return sqrt(h_x*h_x + h_y*h_y + h_z*h_z)
 end
 
 end # module
