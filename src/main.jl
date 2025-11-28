@@ -5,15 +5,16 @@ using PyPlot
 PyPlot.matplotlib.use("Qt5Agg")
 
 # Toggle which simulations to run (1 = run, 0 = skip)
-run_duffing = 1
-run_lorenz = 0
+run_duffing = 0
+run_lorenz = 1
 run_rossler = 0
 run_vanderpol = 0
 
+# Include model source files
 include("my_duffing.jl")
 using .DuffingModule
-# Include model source files
-# include("my_lorenz.jl")
+include("my_lorenz.jl")
+using .LorenzModule
 # include("my_rossler.jl")
 # include("my_vanderpool.jl")
 
@@ -103,8 +104,15 @@ if run_duffing == 1 && isdefined(@__MODULE__, :duffing_single_run)
 end
 
 if run_lorenz == 1 && isdefined(@__MODULE__, :simulate_lorenz)
-	println("Running Lorenz simulation...")
-	simulate_lorenz() # already auto-run
+	# println("Running Lorenz simulation...")
+
+	p = LorenzParams()
+	q0 = (2.0, 3.0, 1.0)
+	q_p0 = (0.5, 0.0, -0.3)
+	# q_pp0 = (0.0, 0.0, 0.0)
+
+	err = simulate_lorenz(p, q0, q_p0; do_plot = true)
+	# println("Max követési hiba: ", err)
 end
 
 if run_rossler == 1 && isdefined(@__MODULE__, :simulate_rossler)

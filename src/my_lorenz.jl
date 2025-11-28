@@ -46,6 +46,10 @@ mutable struct LorenzParams
 	# Logikai flag-ek
 	Adaptive::Bool
 	Robust::Bool
+
+	# Output options
+	save_pdf::Bool
+	pdf_dir::String
 end
 
 function LorenzParams(;
@@ -75,6 +79,9 @@ function LorenzParams(;
 	σa::Float64 = 4.0,
 	ρa::Float64 = 36.0,
 
+	save_pdf::Bool = false,
+	pdf_dir::String = "data/Lorenz",
+
 	Adaptive::Bool = true,
 	Robust::Bool = true,
 )
@@ -85,6 +92,7 @@ function LorenzParams(;
 		A1, A2, A3, ω1, ω2, ω3,
 		βe, σe, ρe,
 		βa, σa, ρa,
+		save_pdf, pdf_dir,
 		Adaptive, Robust,
 	)
 end
@@ -362,7 +370,7 @@ function simulate_lorenz(p::LorenzParams,
 	end
 
 	# Plot
-	if do_plot
+	if p.do_plot
 		# Nominális és megvalósult pályák
 		fig_caption = "nominal_realized_trajectories"
 		fig = figure(fig_caption)
@@ -394,7 +402,9 @@ function simulate_lorenz(p::LorenzParams,
 		subplots_adjust(hspace = 0.2, bottom = 0.2)
 		tight_layout()
 		fig[:canvas][:draw]()
-		savefig("allplots_lorenz.pdf")
+		if (p.save_pdf)
+			savefig("allplots_lorenz.pdf")
+		end
 
 		# 3D pályák
 		fig = figure("Trajectory_tracking_3D")
@@ -435,8 +445,10 @@ function simulate_lorenz(p::LorenzParams,
 		tight_layout()
 		subplots_adjust(hspace = 0.0)
 		fig[:canvas][:draw]()
-		savefig("temp_lorenz.pdf")
-		append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
+		if (p.save_pdf)
+			savefig("temp_lorenz.pdf")
+			append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
+		end
 
 		# Gyorsulások
 		fig_caption = "accelerations"
@@ -469,8 +481,10 @@ function simulate_lorenz(p::LorenzParams,
 		tight_layout()
 		subplots_adjust(hspace = 0.0)
 		fig[:canvas][:draw]()
-		savefig("temp_lorenz.pdf")
-		append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
+		if (p.save_pdf)
+			savefig("temp_lorenz.pdf")
+			append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
+		end
 
 		# Hibák
 		fig_caption = "tracking_error"
@@ -498,8 +512,10 @@ function simulate_lorenz(p::LorenzParams,
 		tight_layout()
 		subplots_adjust(hspace = 0.190)
 		fig[:canvas][:draw]()
-		savefig("temp_lorenz.pdf")
-		append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
+		if (p.save_pdf)
+			savefig("temp_lorenz.pdf")
+			append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
+		end
 
 		# Irányítójelek
 		fig_caption = "control_signal"
@@ -514,9 +530,10 @@ function simulate_lorenz(p::LorenzParams,
 		legend(loc = "lower left", fancybox = "True")
 		tight_layout()
 		gcf()[:canvas][:draw]()
-		savefig("temp_lorenz.pdf")
-		append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
-
+		if (p.save_pdf)
+			savefig("temp_lorenz.pdf")
+			append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
+		end
 		# Fázisterek
 		fig_caption = "phase_trajectories_x"
 		figure(fig_caption)
@@ -528,8 +545,10 @@ function simulate_lorenz(p::LorenzParams,
 		plot(xN_p[1:l], xN[1:l], color = "red", linewidth = 2, label = "Nominális")
 		legend(loc = "lower left", fancybox = "True")
 		tight_layout()
-		savefig("temp_lorenz.pdf")
-		append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
+		if (p.save_pdf)
+			savefig("temp_lorenz.pdf")
+			append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
+		end
 
 		fig_caption = "phase_trajectories_y"
 		figure(fig_caption)
@@ -554,8 +573,21 @@ function simulate_lorenz(p::LorenzParams,
 		plot(zN_p[1:l], zN[1:l], color = "red", linewidth = 2, label = "Nominális")
 		legend(loc = "lower left", fancybox = "True")
 		tight_layout()
-		savefig("temp_lorenz.pdf")
-		append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
+		if p.save_pdf
+			savefig("temp_lorenz.pdf")
+			append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
+
+			# combine and save a timestamped PDF
+			try
+				ts = Dates.format(now(), "yyyy-mm-dd_HHMMSS")
+				fname = joinpath(p.pdf_dir, "lorenz_$(ts).pdf")
+				# ensure directory
+				isdir(p.pdf_dir) || mkpath(p.pdf_dir)
+				savefig(fname)
+			catch e
+				@warn "Could not save PDF: $e"
+			end
+		end
 
 		show()
 	end
@@ -563,12 +595,4 @@ function simulate_lorenz(p::LorenzParams,
 	return max_err
 end
 
-function lorenz_single_run(p = LorenzParams(),
-	q0::NTuple{3, Real},
-	q_p0::NTuple{3, Real};
-	q_pp0::Union{Nothing, NTuple{3, Real}} = nothing,
-	do_plot::Bool = true)
-	return simulate_lorenz(p, q0, q_p0; q_pp0 = q_pp0, do_plot = do_plot)
-end
-
-end
+end # module

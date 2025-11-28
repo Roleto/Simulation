@@ -71,7 +71,7 @@ end
 function DuffingParams(; Adaptive = true, Robust = true, δt = 1e-3, N = Int(2e4), K = 1e5, B = -1.0, A = 1e-5,
 	Λ = 1.0, w = 1.0, K_VSSM = 500.0, ω = 0.5, Amp = 2.0,
 	αe = 1.0, δe = 0.2, βe = 1.0, αa = 0.8, δa = 0.1, βa = 0.9,
-	save_pdf = true, pdf_dir = "./Plots/Duffing")
+	save_pdf = false, pdf_dir = "data/Duffing")
 	return DuffingParams(Adaptive, Robust, δt, N, K, B, A, Λ, w, K_VSSM, ω, Amp,
 		αe, δe, βe, αa, δa, βa, save_pdf, pdf_dir)
 end
