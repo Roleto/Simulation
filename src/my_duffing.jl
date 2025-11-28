@@ -80,11 +80,11 @@ end
 # -----------------------------
 # Helper model functions
 # -----------------------------
-Exact(p::DuffingParams, q, q_p, u) = p.αe * q + p.δe * q_p + p.βe * q^3 + u
-Approx(p::DuffingParams, q, q_p, q_Np) = q_Np - p.αa * q - p.δa * q_p - p.βa * q^3
+Exact(p::DuffingParams, q, q_p, u) = p.αe * q + p.δe * q_p - p.βe * q^3 + u
+Approx(p::DuffingParams, q, q_p, q_Np) = q_Np - p.αa * q #- p.δa * q_p - p.βa * q^3
 ErrorMetrics(p::DuffingParams, h_int, h, h_p) = p.Λ^2 * h_int + 2 * p.Λ * h + h_p
 KinBlock(p::DuffingParams, S, h, h_p, qN_pp) = p.K_VSSM * tanh(S / p.w) + p.Λ^2 * h + 2 * p.Λ * h_p + qN_pp
-G(p::DuffingParams, past_input, past_response, xDnow) = (p.K + past_input) * (1 + p.B * tanh(p.A * (past_response - xDnow))) - p.K
+G(p::DuffingParams, past_input, past_response, xDnow) = (past_input + p.K) * (1 + p.B * tanh(p.A * (past_response - xDnow))) - p.K
 
 # nominal trajectory at time t
 function nominalTraj(p::DuffingParams, t)
@@ -119,12 +119,12 @@ function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot:
 	# initial conditions
 	q_mem[1] = q0
 	q_p_mem[1] = q_p0
-	q_pp_mem[1] = -p.Amp * p.ω^2 * sin(p.ω * δt)
+
 	max_index = 1
 	h_int = 0.0
 	l = LONG - 1
 	for t in 1:l
-		time_mem[t] = (t - 1) * δt
+		time_mem[t] = t * δt
 
 		qN_mem[t], qN_p_mem[t], qN_pp_mem[t] = nominalTraj(p, time_mem[t])
 
@@ -182,6 +182,22 @@ function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot:
 			append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
 		end
 
+		# Speed
+		figure("Speed_tracking")
+		clf()
+		grid(true)
+		title("Speed vs Time")
+		xlabel("Time [s]")
+		ylabel("Speed [m/s]")
+		plot(time_mem[1:l], qN_p_mem[1:l], label = "Névleges")
+		plot(time_mem[1:l], q_p_mem[1:l], linestyle = "--", label = "Realizált")
+		legend(loc = 1)
+
+		if (p.save_pdf)
+			savefig("temp_duffing.pdf")
+			append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
+		end
+
 		# Acceleration
 		figure("Acceleration")
 		clf()
@@ -229,6 +245,17 @@ function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot:
 			append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
 		end
 
+		figure("Control_Signal")
+		grid(true)
+		title("Irányító Jel az Idő Függvényében")
+		xlabel("Idő [s]")
+		ylabel("Jel [N]")
+		plot(time_mem[1:l], u_mem[1:l])
+
+		if (p.save_pdf)
+			savefig("temp_duffing.pdf")
+			append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
+		end
 		if p.save_pdf
 			try
 				# timestamp
