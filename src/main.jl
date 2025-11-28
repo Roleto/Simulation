@@ -23,11 +23,11 @@ if run_duffing == 1
 
 	# saját paraméter
 	p = DuffingParams()
-	p.δt = 1e-3
-	p.N = Int(2e4)
-	p.save_pdf = true
+	p.save_pdf = false
+	# p.Robust = false
+	# p.Adaptive = false
 
-	err = duffing_single_run(p, 0.0, 0.0; do_plot = true)
+	err = duffing_single_run(p, 10.0, 0.0; do_plot = true)
 
 	# q_range = -120:1:120.0
 	# n = length(q_range)
