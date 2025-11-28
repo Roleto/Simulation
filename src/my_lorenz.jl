@@ -578,6 +578,7 @@ function simulate_lorenz(p::LorenzParams,
 		plot(zN_p[1:l], zN[1:l], color = "red", linewidth = 2, label = "Nominális")
 		legend(loc = "lower left", fancybox = "True")
 		tight_layout()
+
 		if p.save_pdf
 			savefig("temp_lorenz.pdf")
 			append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
