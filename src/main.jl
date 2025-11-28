@@ -7,20 +7,14 @@ PyPlot.matplotlib.use("Qt5Agg")
 # Toggle which simulations to run (1 = run, 0 = skip)
 run_duffing = 0
 run_lorenz = 0
-run_rossler = 1
-run_vanderpol = 0
+run_rossler = 0
+run_vanderpol = 1
 
-# Include model source files
-include("my_duffing.jl")
-using .DuffingModule
-include("my_lorenz.jl")
-using .LorenzModule
-include("my_rossler.jl")
-using .RosslerModule
-# include("my_vanderpool.jl")
 
 # Execute simulations (each file currently auto-runs on include; optional explicit calls)
-if run_duffing == 1 && isdefined(@__MODULE__, :duffing_single_run)
+if run_duffing == 1
+	include("my_duffing.jl")
+	using .DuffingModule
 	println("Running Duffing single run...")
 
 	# egyszerű hívás
@@ -104,8 +98,11 @@ if run_duffing == 1 && isdefined(@__MODULE__, :duffing_single_run)
 	# duffing_single_run(0, 0; plot = true)
 end
 
-if run_lorenz == 1 && isdefined(@__MODULE__, :simulate_lorenz)
-	# println("Running Lorenz simulation...")
+if run_lorenz == 1
+	include("my_lorenz.jl")
+	using .LorenzModule
+
+	println("Running Lorenz simulation...")
 
 	p = LorenzParams()
 	q0 = (2.0, 3.0, 1.0)
@@ -116,7 +113,9 @@ if run_lorenz == 1 && isdefined(@__MODULE__, :simulate_lorenz)
 	println("Max követési hiba: ", err)
 end
 
-if run_rossler == 1 && isdefined(@__MODULE__, :simulate_rossler)
+if run_rossler == 1
+	include("my_rossler.jl")
+	using .RosslerModule
 	println("Running Rössler simulation...")
 	p = RosslerParams()
 	q0 = (0.0, 0.0, 0.0)
@@ -126,9 +125,16 @@ if run_rossler == 1 && isdefined(@__MODULE__, :simulate_rossler)
 	println("Max követési hiba: ", err)
 end
 
-if run_vanderpol == 1 && isdefined(@__MODULE__, :vanderpol_single_run)
+if run_vanderpol == 1
+	include("my_vanderpool.jl")
+	using .VanDerPolModule
+
 	println("Running VanDerPol simulation...")
-	vanderpol_single_run() # underlying call in file through simulate_vanderpol
+
+	p = VanDerPolParams()
+
+	err = simulate_vanderpol(p, 1.0, 1.0; do_plot = true)
+	println("Max követési hiba: ", err)
 end
 
-# println("Minden szimuláció lefutott (vagy ki volt kapcsolva).")
+println("Minden szimuláció lefutott (vagy ki volt kapcsolva).")
