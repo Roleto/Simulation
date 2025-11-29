@@ -404,9 +404,12 @@ function simulate_lorenz(p::LorenzParams,
 		subplots_adjust(hspace = 0.2, bottom = 0.2)
 		tight_layout()
 		fig[:canvas][:draw]()
+
 		if (p.save_pdf)
-			savefig("allplots_lorenz.pdf")
+			savefig("temp_lorenz.pdf")
+			append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
 		end
+
 
 		# 3D pályák
 		fig = figure("Trajectory_tracking_3D")
@@ -580,21 +583,30 @@ function simulate_lorenz(p::LorenzParams,
 		tight_layout()
 
 		if p.save_pdf
+
 			savefig("temp_lorenz.pdf")
 			append_pdf!("allplots_lorenz.pdf", "temp_lorenz.pdf", cleanup = true)
 
-			# combine and save a timestamped PDF
 			try
+				# timestamp
 				ts = Dates.format(now(), "yyyy-mm-dd_HHMMSS")
-				fname = joinpath(p.pdf_dir, "lorenz_$(ts).pdf")
-				# ensure directory
+
+				# Ensure output dir exists
 				isdir(p.pdf_dir) || mkpath(p.pdf_dir)
-				savefig(fname)
+
+				# Path of the merged PDF in project root
+				project_root = normpath(joinpath(@__DIR__, ".."))
+				merged_pdf = joinpath(project_root, "allplots_lorenz.pdf")
+
+				# Expected final file
+				final_pdf = joinpath(p.pdf_dir, "lorenz_$(ts).pdf")
+
+				# MOVE the merged file → correct location!
+				mv(merged_pdf, final_pdf; force = true)
 			catch e
 				@warn "Could not save PDF: $e"
 			end
 		end
-
 		show()
 	end
 

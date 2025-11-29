@@ -290,8 +290,10 @@ function simulate_rossler(p::RosslerParams,
 		plot(time_mem[1:l], z[1:l], "g--")
 
 		tight_layout()
+
 		if p.save_pdf
-			savefig("allplots_rossler.pdf")
+			savefig("temp_rossler.pdf")
+			append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
 		end
 
 
@@ -371,18 +373,26 @@ function simulate_rossler(p::RosslerParams,
 		ylabel("z_p")
 		plot(zN[1:l], zN_p[1:l], "r")
 		plot(z[1:l], z_p[1:l], "g--")
+
 		if p.save_pdf
 			savefig("temp_rossler.pdf")
 			append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
-		end
-
-
-		if p.save_pdf
 			try
+				# timestamp
 				ts = Dates.format(now(), "yyyy-mm-dd_HHMMSS")
+
+				# Ensure output dir exists
 				isdir(p.pdf_dir) || mkpath(p.pdf_dir)
-				fname = joinpath(p.pdf_dir, "rossler_$(ts).pdf")
-				savefig(fname)
+
+				# Path of the merged PDF in project root
+				project_root = normpath(joinpath(@__DIR__, ".."))
+				merged_pdf = joinpath(project_root, "allplots_rossler.pdf")
+
+				# Expected final file
+				final_pdf = joinpath(p.pdf_dir, "rossler_$(ts).pdf")
+
+				# MOVE the merged file → correct location!
+				mv(merged_pdf, final_pdf; force = true)
 			catch e
 				@warn "Could not save PDF: $e"
 			end

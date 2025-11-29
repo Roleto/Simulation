@@ -6,30 +6,30 @@ PyPlot.matplotlib.use("Qt5Agg")
 
 # Toggle which simulations to run (1 = run, 0 = skip)
 run_duffing = 1
-run_lorenz = 0
-run_rossler = 0
-run_vanderpol = 0
+run_lorenz = 1
+run_rossler = 1
+run_vanderpol = 1
 
 
 # Execute simulations (each file currently auto-runs on include; optional explicit calls)
 if run_duffing == 1
 	include("my_duffing.jl")
 	using .DuffingModule
-	println("Running Duffing single run...")
+	println("Running Duffing...")
 
 	# egyszerű hívás
-	# err = duffing_single_run(6.5, 1.0; do_plot = true)
-	# println("Max követési hiba: ", err)
+	err = duffing_single_run(-60, 9.0; do_plot = true)
+	println("Max követési hiba: ", err)
 
 	# saját paraméter
-	p = DuffingParams()
-	p.save_pdf = false
+	# p = DuffingParams()
+	# p.save_pdf = true
 	# p.Robust = false
 	# p.Adaptive = false
 
-	err = duffing_single_run(p, 10.0, 0.0; do_plot = true)
+	# err = duffing_single_run(p, 15.0, 0.0; do_plot = true)
 
-	# q_range = -120:1:120.0
+	# q_range = -60:3:60.0
 	# n = length(q_range)
 
 	# errors = zeros(n, n)
@@ -38,7 +38,7 @@ if run_duffing == 1
 	# 	for (iy, y) in enumerate(q_range)
 
 	# 		err = duffing_single_run(p, i, y; do_plot = false)
-
+	# 		println("q0=", i, ", q_p0=", y, " → hiba=", err)
 	# 		errors[ix, iy] = err
 	# 	end
 	# end
@@ -74,6 +74,7 @@ if run_duffing == 1
 
 	# figure("Scatter_plot")
 	# scatter(X, Y, c = Z, cmap = "viridis")
+
 	# colorbar()
 	# xlabel("q₀ (kezdő pozíció)")
 	# ylabel("q̇₀ (kezdő sebesség)")
@@ -81,24 +82,6 @@ if run_duffing == 1
 
 
 	# show()
-	# ax = fig.add_subplot(111, projection = "3d")
-
-	# ax.scatter(X, Y, Z, c = Z, cmap = "viridis")
-	# xlabel("q₀ (kezdő pozíció)")
-	# ylabel("q̇₀ (kezdő sebesség)")
-	# zlabel("hiba")
-	# title("Duffing hibafelület – 3D scatter")
-
-	# figure("Test4")
-
-
-
-	# err2 = duffing_single_run(p, 0.0, 0.0; do_plot = true)
-
-	# # grid search
-	# res, csvfile = grid_search(p, -1.0:0.2:1.0, -1.0:0.2:1.0; plot = false)
-
-	# duffing_single_run(0, 0; plot = true)
 end
 
 if run_lorenz == 1
@@ -108,6 +91,7 @@ if run_lorenz == 1
 	println("Running Lorenz simulation...")
 
 	p = LorenzParams()
+	p.save_pdf = true
 	q0 = (2.0, 3.0, 1.0)
 	q_p0 = (0.5, 0.0, -0.3)
 	# q_pp0 = (0.0, 0.0, 0.0)
@@ -121,6 +105,7 @@ if run_rossler == 1
 	using .RosslerModule
 	println("Running Rössler simulation...")
 	p = RosslerParams()
+	p.save_pdf = true
 	q0 = (0.0, 0.0, 0.0)
 	q_p0 = (1.0, 1.0, 1.0)
 
@@ -135,6 +120,7 @@ if run_vanderpol == 1
 	println("Running VanDerPol simulation...")
 
 	p = VanDerPolParams()
+	p.save_pdf = true
 
 	err = simulate_vanderpol(p, 1.0, 1.0; do_plot = true)
 	println("Max követési hiba: ", err)

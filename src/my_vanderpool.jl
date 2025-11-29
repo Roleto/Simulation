@@ -85,7 +85,7 @@ function VanDerPolParams(;
 	Robust = true,
 
 	save_pdf = false,
-	pdf_dir = "data/Vanderpol",
+	pdf_dir = "data/VanDerPol",
 )
 	return VanDerPolParams(
 		δt, N,
@@ -243,7 +243,8 @@ function simulate_vanderpol(p::VanDerPolParams,
 		legend(loc = 1, borderaxespad = 0)
 
 		if p.save_pdf
-			savefig("allplots_vander.pdf")
+			savefig("temp_vander.pdf")
+			append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
 		end
 
 		# Velocities
@@ -315,13 +316,23 @@ function simulate_vanderpol(p::VanDerPolParams,
 		if p.save_pdf
 			savefig("temp_vander.pdf")
 			append_pdf!("allplots_vander.pdf", "temp_vander.pdf", cleanup = true)
-
 			# timestampelt mentés
 			try
+				# timestamp
 				ts = Dates.format(now(), "yyyy-mm-dd_HHMMSS")
+
+				# Ensure output dir exists
 				isdir(p.pdf_dir) || mkpath(p.pdf_dir)
-				fname = joinpath(p.pdf_dir, "vanderpol_$(ts).pdf")
-				savefig(fname)
+
+				# Path of the merged PDF in project root
+				project_root = normpath(joinpath(@__DIR__, ".."))
+				merged_pdf = joinpath(project_root, "allplots_vander.pdf")
+
+				# Expected final file
+				final_pdf = joinpath(p.pdf_dir, "vanderpol_$(ts).pdf")
+
+				# MOVE the merged file → correct location!
+				mv(merged_pdf, final_pdf; force = true)
 			catch e
 				@warn "Could not save PDF: $e"
 			end

@@ -252,11 +252,11 @@ function simulate_duffing(p::DuffingParams, q0::Float64, q_p0::Float64; do_plot:
 		ylabel("Jel [N]")
 		plot(time_mem[1:l], u_mem[1:l])
 
-		if (p.save_pdf)
+		if p.save_pdf
+
 			savefig("temp_duffing.pdf")
 			append_pdf!("allplots_duffing.pdf", "temp_duffing.pdf", cleanup = true)
-		end
-		if p.save_pdf
+
 			try
 				# timestamp
 				ts = Dates.format(now(), "yyyy-mm-dd_HHMMSS")
