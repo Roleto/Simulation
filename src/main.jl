@@ -5,10 +5,10 @@ using PyPlot
 PyPlot.matplotlib.use("Qt5Agg")
 
 # Toggle which simulations to run (1 = run, 0 = skip)
-run_duffing = 1
+run_duffing = 0
 run_lorenz = 1
-run_rossler = 1
-run_vanderpol = 1
+run_rossler = 0
+run_vanderpol = 0
 
 
 # Execute simulations (each file currently auto-runs on include; optional explicit calls)
@@ -92,9 +92,9 @@ if run_lorenz == 1
 
 	p = LorenzParams()
 	p.save_pdf = true
-	q0 = (2.0, 3.0, 1.0)
-	q_p0 = (0.5, 0.0, -0.3)
-	# q_pp0 = (0.0, 0.0, 0.0)
+	q0 = (0.0, 0.0, 0.0)
+	q_p0 = (0.0, 0.0, 0.0)
+	q_pp0 = (0.0, 0.0, 0.0)
 
 	err = simulate_lorenz(p, q0, q_p0; do_plot = true)
 	println("Max követési hiba: ", err)

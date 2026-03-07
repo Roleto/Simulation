@@ -115,6 +115,8 @@ function ErrorMetric(p::LorenzParams, hint::NTuple{3, Float64},
 		Λ * h[2] + h_p[2],
 		Λ * h[3] + h_p[3],
 	)
+	S_x[i]=Λ*hint_x+h_x
+
 	return S, S_p
 end
 
@@ -128,28 +130,32 @@ des_now      – aktuális kívánt sebesség vektor
 err_limit    – hiba küszöb
 """
 function G_MIMO(p::LorenzParams,
-	r_prev::Vector{Float64},
-	r_prev_last::Vector{Float64},
-	f_prev::Vector{Float64},
-	des_now::Vector{Float64},
+	past_input::Vector{Float64},
+	past_input_p::Vector{Float64},
+	past_response::Vector{Float64},
+	desired::Vector{Float64},
 	err_limit::Float64)
 
 	K = p.K
 	B = p.B
 	A = p.A
+	# G_MIMO(p, past_input, past_input_p, past_response, desired, error_limit)
 
-	Amatr_h = (f_prev .- des_now)
-	error_norm = norm(Amatr_h)
+	Amatr_h = (past_response .- desired)
+	error_norm = norm(Amatr_h, 2)
 
 	if error_norm > err_limit
-		e_direction = Amatr_h / error_norm
+		e_direction = Amatr_h ./ error_norm
+
 		B_factor = B * tanh(A * error_norm)
-		G = (1 + B_factor) .* r_prev .+ B_factor * K .* e_direction
+
+		G = (1 + B_factor) .* past_input .+ B_factor * K .* e_direction
+
 	else
-		G = copy(r_prev)
+		G = copy(past_input)
 	end
 
-	G_p = G .- r_prev_last
+	G_p = G .- past_input_p
 	return G, G_p
 end
 
@@ -325,7 +331,7 @@ function simulate_lorenz(p::LorenzParams,
 		end
 
 		# Deformáció (ACC blokk)
-		if p.Adaptive && t > 4
+		if p.Adaptive && t > 3
 			past_input, past_input_p = G_MIMO(p, past_input, past_input_p, past_response, desired, error_limit)
 		else
 			past_input_p .= past_input
