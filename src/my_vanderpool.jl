@@ -1,4 +1,9 @@
+module VanDerPolModule
 using PyPlot
+
+export run_vanderpol
+
+function run_vanderpol(q0=nothing, q_p0=nothing; do_plot=false)
 #############################################
 # Van der Pol Oscillator Controlled by RFPT #
 #############################################
@@ -71,11 +76,10 @@ qDes_pp=zeros(LONG)#A PID korrekciós adatok
 qDef_pp=zeros(LONG) #Az Adaptívan torzított jelre
 
 hint=0 #A követési hiba integrálja
-q[1]=Amp*sin(ω*δt)
-q_p[1]=Amp*ω*cos(ω*δt)
+q[1]   = (q0   === nothing) ? Amp*sin(ω*δt)   : q0
+q_p[1] = (q_p0 === nothing) ? Amp*ω*cos(ω*δt) : q_p0
 
 for i=1:l
-    global hint
       #Compute the time in seconds
       t[i]=δt*i
       # Compute the Nominal trajectory.
@@ -109,47 +113,42 @@ for i=1:l
       hint=hint+δt*h
 end# for
 
-figure(1)
-grid(true)
-title("Trajectory Tracking")
-xlabel("time")
-ylabel("position")
-plot(t[1:l],qN[1:l])
-plot(t[1:l],q[1:l],"r--")
-#
- figure(2)
- grid(true)
- title("Tracking Error")
- xlabel("time")
- ylabel("error")
- plot(t[1:l],qN[1:l]-q[1:l])
-#
- figure(3)
- grid(true)
- title("Phase Space")
- xlabel("q")
- ylabel("q_p")
- plot(qN[1:l],qN_p[1:l])
- plot(q[1:l],q_p[1:l],"r--")
-#
-figure(4)
-grid(true)
-title("Control Signal")
-xlabel("time")
-ylabel("signal")
-plot(t[1:l],u[1:l])
+    if do_plot
+        figure()
+        grid(true)
+        title("VanDerPol – Trajectory Tracking")
+        xlabel("time")
+        ylabel("position")
+        plot(t[1:l], qN[1:l], label="nominal")
+        plot(t[1:l], q[1:l], "r--", label="actual")
+        legend()
 
-function my_max(arr)
-  maxval = arr[1]
-  for x in arr
-    if x > maxval
-      maxval = x
+        figure()
+        grid(true)
+        title("VanDerPol – Tracking Error")
+        xlabel("time")
+        ylabel("error")
+        plot(t[1:l], qN[1:l] .- q[1:l])
+
+        figure()
+        grid(true)
+        title("VanDerPol – Phase Space")
+        xlabel("q")
+        ylabel("q_p")
+        plot(qN[1:l], qN_p[1:l])
+        plot(q[1:l], q_p[1:l], "r--")
+
+        figure()
+        grid(true)
+        title("VanDerPol – Control Signal")
+        xlabel("time")
+        ylabel("signal")
+        plot(t[1:l], u[1:l])
     end
-  end
-  return maxval
-end
 
-maxhiba = my_max(abs.(qN[1:l] .- q[1:l]))
-println("maxhiba :", maxhiba)
+    maxhiba = maximum(abs.(qN[1:l] .- q[1:l]))
+    println("maxhiba :", maxhiba)
+    return maxhiba
+end # run_vanderpol
 
-show()
+end # module VanDerPolModule

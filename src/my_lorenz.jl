@@ -1,8 +1,10 @@
-using Pkg
-Pkg.activate(".")
+module LorenzModule
 using PyPlot
-PyPlot.matplotlib.use("Qt5Agg")
 using LinearAlgebra
+
+export run_lorenz
+
+function run_lorenz(x0=0.0, y0=0.0, z0=0.0; do_plot=false)
 Adaptive=1  #RFPT
 Robust=1    #VSSM
 ######################
@@ -124,19 +126,10 @@ past_input=[0, 0, 0]
 past_response=[0, 0, 0]
 error_limit=1e-3
 
-x[1]=A₁*sin(ω₁*δt)
-y[1]=A₂*sin(ω₂*δt)
-z[1]=A₃*sin(ω₃*δt)
-x[1]=0
-y[1]=0
-z[1]=0
+x[1]=x0
+y[1]=y0
+z[1]=z0
 for i ∈ 1:l
-	global hint_x
-	global hint_y
-	global hint_z
-	global past_input
-	global past_response
-	global error_limit
 	#Compute the time in seconds
 	t[i]=δt*i
 	# Compute the Nominal trajectory.
@@ -202,59 +195,54 @@ for i ∈ 1:l
 	hint_z=hint_z+δt*h_z
 end# for
 
-figure(1)
-grid(true)
-title("traj. tracking")
-plot(t[1:l], xN[1:l])
-plot(t[1:l], yN[1:l])
-plot(t[1:l], zN[1:l])
-plot(t[1:l], x[1:l], "r--")
-plot(t[1:l], y[1:l], "r--")
-plot(t[1:l], z[1:l], "r--")
+    if do_plot
+        figure()
+        grid(true)
+        title("Lorenz – Trajectory Tracking")
+        plot(t[1:l], xN[1:l], label="xN")
+        plot(t[1:l], yN[1:l], label="yN")
+        plot(t[1:l], zN[1:l], label="zN")
+        plot(t[1:l], x[1:l], "r--", label="x")
+        plot(t[1:l], y[1:l], "g--", label="y")
+        plot(t[1:l], z[1:l], "b--", label="z")
+        legend()
 
-figure(2)
-title("Tracking error")
-grid(true)
-plot(t[1:l], xN[1:l]-x[1:l])
-plot(t[1:l], yN[1:l]-y[1:l])
-plot(t[1:l], zN[1:l]-z[1:l])
+        figure()
+        title("Lorenz – Tracking Error")
+        grid(true)
+        plot(t[1:l], xN[1:l] .- x[1:l], label="ex")
+        plot(t[1:l], yN[1:l] .- y[1:l], label="ey")
+        plot(t[1:l], zN[1:l] .- z[1:l], label="ez")
+        legend()
 
-figure(3)
-title("Phase Space - X")
-grid(true)
-plot(xN[1:l], xN_p[1:l])
-plot(x[1:l], x_p[1:l], "r--")
+        figure()
+        title("Lorenz – Phase Space X")
+        grid(true)
+        plot(xN[1:l], xN_p[1:l])
+        plot(x[1:l], x_p[1:l], "r--")
 
+        figure()
+        title("Lorenz – Phase Space Y")
+        grid(true)
+        plot(yN[1:l], yN_p[1:l])
+        plot(y[1:l], y_p[1:l], "r--")
 
-figure(4)
-title("Phase Space - Y")
-grid(true)
-plot(yN[1:l], yN_p[1:l])
-plot(y[1:l], y_p[1:l], "r--")
+        figure()
+        title("Lorenz – Phase Space Z")
+        grid(true)
+        plot(zN[1:l], zN_p[1:l])
+        plot(z[1:l], z_p[1:l], "r--")
+    end
 
-figure(5)
-title("Phase Space - Z")
-grid(true)
-plot(zN[1:l], zN_p[1:l])
-plot(z[1:l], z_p[1:l], "r--")
+    maxhiba_x = maximum(abs.(xN[1:l] .- x[1:l]))
+    maxhiba_y = maximum(abs.(yN[1:l] .- y[1:l]))
+    maxhiba_z = maximum(abs.(zN[1:l] .- z[1:l]))
+    maxhiba = sqrt(maxhiba_x^2 + maxhiba_y^2 + maxhiba_z^2)
+    println("maxhiba_x :", maxhiba_x)
+    println("maxhiba_y :", maxhiba_y)
+    println("maxhiba_z :", maxhiba_z)
+    println("maxhiba   :", maxhiba)
+    return maxhiba
+end # run_lorenz
 
-function my_max(arr)
-	maxval = arr[1]
-	for x in arr
-		if x > maxval
-			maxval = x
-		end
-	end
-	return maxval
-end
-
-maxhiba_x = my_max(abs.(xN[1:l] .- x[1:l]))
-maxhiba_y = my_max(abs.(yN[1:l] .- y[1:l]))
-maxhiba_z = my_max(abs.(zN[1:l] .- z[1:l]))
-maxhiba = sqrt(maxhiba_x^2 + maxhiba_y^2 + maxhiba_z^2)
-println("maxhiba_x :", maxhiba_x)
-println("maxhiba_y :", maxhiba_y)
-println("maxhiba_z :", maxhiba_z)
-println("maxhiba   :", maxhiba)
-
-show()
+end # module LorenzModule
