@@ -83,8 +83,8 @@ for i=1:l
       qN_p[i]=Amp*ω*cos(ω*t[i]) #_p is for d/dt 
       qN_pp[i]=-Amp*ω^2*sin(ω*t[i])
       # Compute the Error.
-      h=qN[i]-q[i]
-      h_p=qN_p[i]-q_p[i]
+      local h=qN[i]-q[i]
+      local h_p=qN_p[i]-q_p[i]
     
       if Robust==1
         S=Λ^2*hint+2*Λ*h+h_p

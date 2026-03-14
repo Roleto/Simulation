@@ -258,7 +258,7 @@ end
 maxhiba_x = my_max(abs.(xN[1:l] .- x[1:l]))
 maxhiba_y = my_max(abs.(yN[1:l] .- y[1:l]))
 maxhiba_z = my_max(abs.(zN[1:l] .- z[1:l]))
-maxhiba = my_max([maxhiba_x, maxhiba_y, maxhiba_z])
+maxhiba = sqrt(maxhiba_x^2 + maxhiba_y^2 + maxhiba_z^2)
 println("maxhiba_x :", maxhiba_x)
 println("maxhiba_y :", maxhiba_y)
 println("maxhiba_z :", maxhiba_z)
