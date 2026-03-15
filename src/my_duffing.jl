@@ -3,7 +3,7 @@ using PyPlot
 
 export run_duffing
 
-function run_duffing(q0=10.0, q_p0=10.0; do_plot=false)
+function run_duffing(q0=0.0, q_p0=0.0; do_plot=true)
     #############################################
     # Duffing Oscillator Controlled by RFPT #
     #############################################

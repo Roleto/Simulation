@@ -48,7 +48,8 @@ function run_duffing(q0=10.0, qp0=10.0;
     βₑ=1.0,
     αₐ=0.8,
     δₐ=0.1,
-    βₐ=0.9)
+    βₐ=0.9,
+    do_plot=false)
 
     l = LONG - 1
     t = zeros(LONG)
@@ -96,6 +97,34 @@ function run_duffing(q0=10.0, qp0=10.0;
         hint = hint + δt * h[i]
     end
 
+    if do_plot
+        figure("Duffing - Trajectory")
+        grid(true)
+        title("Duffing – Trajectory Tracking")
+        xlabel("time")
+        ylabel("position")
+        plot(t[1:l], qN[1:l], label="nominal")
+        plot(t[1:l], q[1:l], "r--", label="actual")
+        legend()
+
+        figure("Duffing - Error")
+        grid(true)
+        title("Duffing – Tracking Error")
+        xlabel("time")
+        ylabel("error")
+        plot(t[1:l], h[1:l])
+
+        figure("Duffing - Phase Space")
+        grid(true)
+        title("Duffing – Phase Space")
+        xlabel("q")
+        ylabel("q̇")
+        plot(qN[1:l], qN_p[1:l], label="nominal")
+        plot(q[1:l], q_p[1:l], "r--", label="actual")
+        legend()
+        show()
+    end
+
     return maximum(abs.(h[1:l]))
 end
 
@@ -127,7 +156,8 @@ function run_vanderpol(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3)
     ωₐ=0.42,
     αₐ=0.9,
     λₐ=0.09,
-    mₐ=0.8)
+    mₐ=0.8,
+    do_plot=false)
 
     l = LONG - 1
     t = zeros(LONG)
@@ -174,6 +204,34 @@ function run_vanderpol(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3)
         hint = hint + δt * h
     end
 
+    if do_plot
+        figure("VanDerPol - Trajectory")
+        grid(true)
+        title("Van der Pol – Trajectory Tracking")
+        xlabel("time")
+        ylabel("position")
+        plot(t[1:l], qN[1:l], label="nominal")
+        plot(t[1:l], q[1:l], "r--", label="actual")
+        legend()
+
+        figure("VanDerPol - Error")
+        grid(true)
+        title("Van der Pol – Tracking Error")
+        xlabel("time")
+        ylabel("error")
+        plot(t[1:l], qN[1:l] .- q[1:l])
+
+        figure("VanDerPol - Phase Space")
+        grid(true)
+        title("Van der Pol – Phase Space")
+        xlabel("q")
+        ylabel("q̇")
+        plot(qN[1:l], qN_p[1:l], label="nominal")
+        plot(q[1:l], q_p[1:l], "r--", label="actual")
+        legend()
+        show()
+    end
+
     return maximum(abs.(qN[1:l] .- q[1:l]))
 end
 
@@ -212,7 +270,8 @@ function run_lorenz(x0=0.0, y0=0.0, z0=0.0;
     A₃=1, ω₃=1,
     βₑ=8 / 3, σₑ=5, ρₑ=40,
     βₐ=7 / 3, σₐ=4, ρₐ=36,
-    error_limit=1e-3)
+    error_limit=1e-3,
+    do_plot=false)
 
     l = LONG - 1
     t = zeros(LONG)
@@ -303,6 +362,28 @@ function run_lorenz(x0=0.0, y0=0.0, z0=0.0;
     ex = maximum(abs.(xN[1:l] .- x[1:l]))
     ey = maximum(abs.(yN[1:l] .- y[1:l]))
     ez = maximum(abs.(zN[1:l] .- z[1:l]))
+
+    if do_plot
+        figure("Lorenz - Trajectory")
+        grid(true)
+        title("Lorenz – Trajectory Tracking")
+        xlabel("time")
+        plot(t[1:l], xN[1:l], label="xN"); plot(t[1:l], x[1:l], "r--", label="x")
+        plot(t[1:l], yN[1:l], label="yN"); plot(t[1:l], y[1:l], "b--", label="y")
+        plot(t[1:l], zN[1:l], label="zN"); plot(t[1:l], z[1:l], "g--", label="z")
+        legend()
+
+        figure("Lorenz - Error")
+        grid(true)
+        title("Lorenz – Tracking Error")
+        xlabel("time")
+        plot(t[1:l], xN[1:l] .- x[1:l], label="ex")
+        plot(t[1:l], yN[1:l] .- y[1:l], label="ey")
+        plot(t[1:l], zN[1:l] .- z[1:l], label="ez")
+        legend()
+        show()
+    end
+
     return sqrt(ex^2 + ey^2 + ez^2)
 end
 
@@ -327,7 +408,8 @@ function run_rossler(x0=2.0 * sin(0.5 * 1e-3), y0=3.0 * sin(0.7 * 1e-3), z0=1.0 
     A₃=1, ω₃=1,
     aₑ=0.01, bₑ=0.2, cₑ=5.7,
     aₐ=0.1, bₐ=0.3, cₐ=5.5,
-    error_limit=1e-3)
+    error_limit=1e-3,
+    do_plot=false)
 
     l = LONG - 1
     t = zeros(LONG)
@@ -418,6 +500,28 @@ function run_rossler(x0=2.0 * sin(0.5 * 1e-3), y0=3.0 * sin(0.7 * 1e-3), z0=1.0 
     ex = maximum(abs.(xN[1:l] .- x[1:l]))
     ey = maximum(abs.(yN[1:l] .- y[1:l]))
     ez = maximum(abs.(zN[1:l] .- z[1:l]))
+
+    if do_plot
+        figure("Rossler - Trajectory")
+        grid(true)
+        title("Rössler – Trajectory Tracking")
+        xlabel("time")
+        plot(t[1:l], xN[1:l], label="xN"); plot(t[1:l], x[1:l], "r--", label="x")
+        plot(t[1:l], yN[1:l], label="yN"); plot(t[1:l], y[1:l], "b--", label="y")
+        plot(t[1:l], zN[1:l], label="zN"); plot(t[1:l], z[1:l], "g--", label="z")
+        legend()
+
+        figure("Rossler - Error")
+        grid(true)
+        title("Rössler – Tracking Error")
+        xlabel("time")
+        plot(t[1:l], xN[1:l] .- x[1:l], label="ex")
+        plot(t[1:l], yN[1:l] .- y[1:l], label="ey")
+        plot(t[1:l], zN[1:l] .- z[1:l], label="ez")
+        legend()
+        show()
+    end
+
     return sqrt(ex^2 + ey^2 + ez^2)
 end
 
