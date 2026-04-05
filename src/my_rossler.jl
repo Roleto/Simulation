@@ -1,397 +1,266 @@
 module RosslerModule
-
-using LinearAlgebra
 using PyPlot
-using PDFmerger
-using Dates
+using LinearAlgebra
 
-export RosslerParams, simulate_rossler, rossler_single_run
+export run_rossler
 
-#######################
-# Paraméter struktúra #
-#######################
-
-mutable struct RosslerParams
-	δt::Float64
-	N::Int
-
-	# Control parameters
-	K::Float64
-	B::Float64
-	A::Float64
-
-	# Kinematic block
-	Λ::Float64
-	K_VSSM::Float64
-	w::Float64
-
-	# Nominal trajectory parameters
-	A1::Float64
-	ω1::Float64
-	A2::Float64
-	ω2::Float64
-	A3::Float64
-	ω3::Float64
-
-	# Exact model params
-	ae::Float64
-	be::Float64
-	ce::Float64
-
-	# Approx model params
-	aa::Float64
-	ba::Float64
-	ca::Float64
-
-	Adaptive::Bool
-	Robust::Bool
-
-	save_pdf::Bool
-	pdf_dir::String
+function G_MIMO(past_input, past_response, desired, error_limit, Kc, Bc, Ac)
+  error_norm = norm(past_response - desired, 2)
+  if error_norm > error_limit
+    e_direction = (past_response - desired) / error_norm
+    B_factor = Bc * tanh(Ac * error_norm)
+    return (1 + B_factor) * past_input + B_factor * Kc * e_direction
+  else
+    return past_input
+  end
 end
 
+function run_rossler(x0=2.0 * sin(0.5 * 1e-3), y0=3.0 * sin(0.7 * 1e-3), z0=1.0 * sin(1.0 * 1e-3);
+  Adaptive=1,
+  Robust=1,
+  K=1e2,
+  B=-1.0,
+  A=1.97e-3,
+  δt=1e-3,
+  LONG=Int(2e4),
+  Λ=1,
+  K_VSSM=50,
+  w=1,
+  A₁=2, ω₁=0.5,
+  A₂=3, ω₂=0.7,
+  A₃=1, ω₃=1,
+  aₑ=0.01, bₑ=0.2, cₑ=5.7,
+  aₐ=0.1, bₐ=0.3, cₐ=5.5,
+  error_limit=1e-3,
+  do_plot=false)
 
-function RosslerParams(;
-	δt = 1e-3,
-	N = Int(2e4),
+  l = LONG - 1
+  t = zeros(LONG)
+  xN = zeros(LONG)
+  xN_p = zeros(LONG)
+  yN = zeros(LONG)
+  yN_p = zeros(LONG)
+  zN = zeros(LONG)
+  zN_p = zeros(LONG)
+  xDes = zeros(LONG)
+  xDef = zeros(LONG)
+  yDes = zeros(LONG)
+  yDef = zeros(LONG)
+  zDes = zeros(LONG)
+  zDef = zeros(LONG)
+  x_p = zeros(LONG)
+  y_p = zeros(LONG)
+  z_p = zeros(LONG)
+  x = zeros(LONG)
+  y = zeros(LONG)
+  z = zeros(LONG)
+  u_x = zeros(LONG)
+  u_y = zeros(LONG)
+  u_z = zeros(LONG)
 
-	K = 1e2,
-	B = -1.0,
-	A = 1.97e-3,
+  x[1] = x0
+  y[1] = y0
+  z[1] = z0
+  hint_x = 0.0
+  hint_y = 0.0
+  hint_z = 0.0
+  past_input = [0.0, 0.0, 0.0]
+  past_response = [0.0, 0.0, 0.0]
 
-	Λ = 1.0,
-	K_VSSM = 50.0,
-	w = 1.0,
+  for i = 1:l
+    t[i] = δt * i
+    xN[i] = A₁ * sin(ω₁ * t[i])
+    xN_p[i] = A₁ * ω₁ * cos(ω₁ * t[i])
+    yN[i] = A₂ * sin(ω₂ * t[i])
+    yN_p[i] = A₂ * ω₂ * cos(ω₂ * t[i])
+    zN[i] = A₃ * sin(ω₃ * t[i])
+    zN_p[i] = A₃ * ω₃ * cos(ω₃ * t[i])
 
-	A1 = 2.0,
-	ω1 = 0.5,
-	A2 = 3.0,
-	ω2 = 0.7,
-	A3 = 1.0,
-	ω3 = 1.0,
+    h_x = xN[i] - x[i]
+    h_y = yN[i] - y[i]
+    h_z = zN[i] - z[i]
 
-	ae = 0.01,
-	be = 0.2,
-	ce = 5.7,
+    if Robust == 1
+      S_x = Λ * hint_x + h_x
+      S_y = Λ * hint_y + h_y
+      S_z = Λ * hint_z + h_z
+      xDes[i] = xN_p[i] + Λ * h_x + K_VSSM * tanh(S_x / w)
+      yDes[i] = yN_p[i] + Λ * h_y + K_VSSM * tanh(S_y / w)
+      zDes[i] = zN_p[i] + Λ * h_z + K_VSSM * tanh(S_z / w)
+    else
+      xDes[i] = xN_p[i] + Λ^2 * hint_x + 2 * Λ * h_x
+      yDes[i] = yN_p[i] + Λ^2 * hint_y + 2 * Λ * h_y
+      zDes[i] = zN_p[i] + Λ^2 * hint_z + 2 * Λ * h_z
+    end
 
-	aa = 0.1,
-	ba = 0.3,
-	ca = 5.5,
+    desired = [xDes[i], yDes[i], zDes[i]]
 
-	Adaptive = true,
-	Robust = true,
+    if Adaptive == 1 && i > 3
+      past_input = G_MIMO(past_input, past_response, desired, error_limit, K, B, A)
+    else
+      past_input = desired
+    end
 
-	save_pdf = false,
-	pdf_dir = "data/Rossler",
-)
-	return RosslerParams(
-		δt, N,
-		K, B, A,
-		Λ, K_VSSM, w,
-		A1, ω1, A2, ω2, A3, ω3,
-		ae, be, ce,
-		aa, ba, ca,
-		Adaptive, Robust,
-		save_pdf, pdf_dir,
-	)
+    xDef[i] = past_input[1]
+    yDef[i] = past_input[2]
+    zDef[i] = past_input[3]
+
+    u_x[i] = xDef[i] + y[i] + z[i]
+    u_y[i] = yDef[i] - x[i] - aₐ * y[i]
+    u_z[i] = zDef[i] - bₐ - z[i] * (x[i] - cₐ)
+
+    x_p[i] = -y[i] - z[i] + u_x[i]
+    y_p[i] = x[i] + aₑ * y[i] + u_y[i]
+    z_p[i] = bₑ + z[i] * (x[i] - cₑ) + u_z[i]
+    past_response = [x_p[i], y_p[i], z_p[i]]
+
+    x[i+1] = x[i] + δt * x_p[i]
+    y[i+1] = y[i] + δt * y_p[i]
+    z[i+1] = z[i] + δt * z_p[i]
+
+    hint_x += δt * h_x
+    hint_y += δt * h_y
+    hint_z += δt * h_z
+  end
+
+  ex = maximum(abs.(xN[1:l] .- x[1:l]))
+  ey = maximum(abs.(yN[1:l] .- y[1:l]))
+  ez = maximum(abs.(zN[1:l] .- z[1:l]))
+
+  x_pp = vcat(0.0, diff(x_p[1:l]) ./ δt)
+  y_pp = vcat(0.0, diff(y_p[1:l]) ./ δt)
+  z_pp = vcat(0.0, diff(z_p[1:l]) ./ δt)
+  xN_pp = vcat(0.0, diff(xN_p[1:l]) ./ δt)
+  yN_pp = vcat(0.0, diff(yN_p[1:l]) ./ δt)
+  zN_pp = vcat(0.0, diff(zN_p[1:l]) ./ δt)
+
+  if do_plot
+    fig1 = figure("Rossler - Trajectory")
+    fig1.suptitle("Rössler – Trajectory Tracking")
+    subplot(311)
+    ax1 = gca()
+    grid(true)
+    ylabel("X")
+    plot(t[1:l], xN[1:l], color="red", linewidth=1.5, label="nominal")
+    plot(t[1:l], x[1:l], color="green", linestyle="--", linewidth=1.5, label="actual")
+    legend(loc="upper right")
+    subplot(312, sharex=ax1)
+    grid(true)
+    ylabel("Y")
+    plot(t[1:l], yN[1:l], color="red", linewidth=1.5)
+    plot(t[1:l], y[1:l], color="green", linestyle="--", linewidth=1.5)
+    subplot(313, sharex=ax1)
+    grid(true)
+    ylabel("Z")
+    xlabel("time")
+    plot(t[1:l], zN[1:l], color="red", linewidth=1.5)
+    plot(t[1:l], z[1:l], color="green", linestyle="--", linewidth=1.5)
+    tight_layout()
+
+    fig_vel = figure("Rossler - Velocities")
+    fig_vel.suptitle("Rössler – Velocities")
+    subplot(311)
+    ax1 = gca()
+    grid(true)
+    ylabel("X [/s]")
+    plot(t[1:l], xN_p[1:l], color="red", linewidth=1.5, label="nominal")
+    plot(t[1:l], x_p[1:l], color="green", linestyle="--", linewidth=1.5, label="actual")
+    legend(loc="upper right")
+    subplot(312, sharex=ax1)
+    grid(true)
+    ylabel("Y [/s]")
+    plot(t[1:l], yN_p[1:l], color="red", linewidth=1.5)
+    plot(t[1:l], y_p[1:l], color="green", linestyle="--", linewidth=1.5)
+    subplot(313, sharex=ax1)
+    grid(true)
+    ylabel("Z [/s]")
+    xlabel("time")
+    plot(t[1:l], zN_p[1:l], color="red", linewidth=1.5)
+    plot(t[1:l], z_p[1:l], color="green", linestyle="--", linewidth=1.5)
+    tight_layout()
+
+    fig_acc = figure("Rossler - Accelerations")
+    fig_acc.suptitle("Rössler – Accelerations")
+    subplot(311)
+    ax1 = gca()
+    grid(true)
+    ylabel("X [/s²]")
+    plot(t[1:l], xN_pp[1:l], color="red", linewidth=1.5, label="nominal")
+    plot(t[1:l], x_pp[1:l], color="green", linestyle="--", linewidth=1.5, label="actual")
+    legend(loc="upper right")
+    subplot(312, sharex=ax1)
+    grid(true)
+    ylabel("Y [/s²]")
+    plot(t[1:l], yN_pp[1:l], color="red", linewidth=1.5)
+    plot(t[1:l], y_pp[1:l], color="green", linestyle="--", linewidth=1.5)
+    subplot(313, sharex=ax1)
+    grid(true)
+    ylabel("Z [/s²]")
+    xlabel("time")
+    plot(t[1:l], zN_pp[1:l], color="red", linewidth=1.5)
+    plot(t[1:l], z_pp[1:l], color="green", linestyle="--", linewidth=1.5)
+    tight_layout()
+
+    fig2 = figure("Rossler - Tracking Error")
+    fig2.suptitle("Rössler – Tracking Errors")
+    subplot(311)
+    ax1 = gca()
+    grid(true)
+    ylabel("X error")
+    plot(t[1:l], xN[1:l] .- x[1:l], color="red", linewidth=1.5)
+    subplot(312, sharex=ax1)
+    grid(true)
+    ylabel("Y error")
+    plot(t[1:l], yN[1:l] .- y[1:l], color="red", linewidth=1.5)
+    subplot(313, sharex=ax1)
+    grid(true)
+    ylabel("Z error")
+    xlabel("time")
+    plot(t[1:l], zN[1:l] .- z[1:l], color="red", linewidth=1.5)
+    tight_layout()
+
+    figure("Rossler - Control Signals")
+    grid(true)
+    title("Rössler – Control Signals")
+    xlabel("time")
+    ylabel("signal")
+    plot(t[1:l], u_x[1:l], color="red", label="u_x")
+    plot(t[1:l], u_y[1:l], color="green", linestyle="--", label="u_y")
+    plot(t[1:l], u_z[1:l], color="blue", label="u_z")
+    legend()
+    tight_layout()
+
+    figure("Rossler - Phase X")
+    grid(true)
+    title("Rössler – Phase Space X")
+    xlabel("X")
+    ylabel("Ẋ")
+    plot(xN[1:l], xN_p[1:l], color="red", label="nominal")
+    plot(x[1:l], x_p[1:l], color="green", linestyle="--", label="actual")
+    legend()
+
+    figure("Rossler - Phase Y")
+    grid(true)
+    title("Rössler – Phase Space Y")
+    xlabel("Y")
+    ylabel("Ẏ")
+    plot(yN[1:l], yN_p[1:l], color="red", label="nominal")
+    plot(y[1:l], y_p[1:l], color="green", linestyle="--", label="actual")
+    legend()
+
+    figure("Rossler - Phase Z")
+    grid(true)
+    title("Rössler – Phase Space Z")
+    xlabel("Z")
+    ylabel("Ż")
+    plot(zN[1:l], zN_p[1:l], color="red", label="nominal")
+    plot(z[1:l], z_p[1:l], color="green", linestyle="--", label="actual")
+    legend()
+
+    show()
+  end
+
+  return sqrt(ex^2 + ey^2 + ez^2)
 end
 
-
-###################
-# Segédfüggvények #
-###################
-
-ErrorMetric(hint, h, Λ) = Λ .* hint .+ h
-
-function G_MIMO(past_input, past_response, desired, err_limit, p::RosslerParams)
-	Amatr_h = past_response - desired
-	error_norm = norm(Amatr_h)
-
-	if error_norm > err_limit
-		e_direction = Amatr_h / error_norm
-		B_factor = p.B * tanh(p.A * error_norm)
-		G = (1 + B_factor) * past_input + B_factor * p.K * e_direction
-	else
-		G = past_input
-	end
-	return G
-end
-
-###########################
-# Fő szimulációs függvény #
-###########################
-
-function simulate_rossler(p::RosslerParams,
-	q0::NTuple{3, Real},
-	q_p0::NTuple{3, Real};
-	q_pp0 = nothing,
-	do_plot = true)
-
-	δt = p.δt
-	N = p.N
-	l = N - 1
-
-	# Allocation
-	time_mem = zeros(N)
-
-	x = zeros(N);
-	y = zeros(N);
-	z = zeros(N)
-	x_p = zeros(N);
-	y_p = zeros(N);
-	z_p = zeros(N)
-
-	xN = zeros(N);
-	xN_p = zeros(N)
-	yN = zeros(N);
-	yN_p = zeros(N)
-	zN = zeros(N);
-	zN_p = zeros(N)
-
-	xDes_p = zeros(N);
-	yDes_p = zeros(N);
-	zDes_p = zeros(N)
-	xDef_p = zeros(N);
-	yDef_p = zeros(N);
-	zDef_p = zeros(N)
-
-	S_x = zeros(N);
-	S_y = zeros(N);
-	S_z = zeros(N)
-
-	past_input = zeros(3)
-	past_response = zeros(3)
-	past_responses = zeros(N, 3)
-
-	hint_x = 0.0
-	hint_y = 0.0
-	hint_z = 0.0
-	error_limit = 1e-3
-
-	# Initial conditions
-	x[1]   = q0[1];
-	y[1]   = q0[2];
-	z[1]   = q0[3]
-	x_p[1] = q_p0[1];
-	y_p[1] = q_p0[2];
-	z_p[1] = q_p0[3]
-
-	max_index = 1
-
-	for t in 1:l
-		time_mem[t] = (t - 1) * δt
-
-		# Nominal traj
-		xN[t] = p.A1 * sin(p.ω1 * time_mem[t])
-		xN_p[t] = p.A1 * p.ω1 * cos(p.ω1 * time_mem[t])
-
-		yN[t] = p.A2 * sin(p.ω2 * time_mem[t])
-		yN_p[t] = p.A2 * p.ω2 * cos(p.ω2 * time_mem[t])
-
-		zN[t] = p.A3 * sin(p.ω3 * time_mem[t])
-		zN_p[t] = p.A3 * p.ω3 * cos(p.ω3 * time_mem[t])
-
-		# Errors
-		h_x = xN[t] - x[t]
-		h_y = yN[t] - y[t]
-		h_z = zN[t] - z[t]
-
-		# Robust
-		if p.Robust
-			S = ErrorMetric([hint_x, hint_y, hint_z], [h_x, h_y, h_z], p.Λ)
-			S_x[t] = S[1];
-			S_y[t] = S[2];
-			S_z[t] = S[3]
-
-			xDes_p[t] = xN_p[t] + p.Λ*h_x + p.K_VSSM*tanh(S_x[t]/p.w)
-			yDes_p[t] = yN_p[t] + p.Λ*h_y + p.K_VSSM*tanh(S_y[t]/p.w)
-			zDes_p[t] = zN_p[t] + p.Λ*h_z + p.K_VSSM*tanh(S_z[t]/p.w)
-
-			desired = [xDes_p[t], yDes_p[t], zDes_p[t]]
-		else
-			xDes_p[t] = p.Λ^2*hint_x + 2*p.Λ*h_x + xN_p[t]
-			yDes_p[t] = p.Λ^2*hint_y + 2*p.Λ*h_y + yN_p[t]
-			zDes_p[t] = p.Λ^2*hint_z + 2*p.Λ*h_z + zN_p[t]
-
-			desired = [xDes_p[t], yDes_p[t], zDes_p[t]]
-		end
-
-		# Adaptive deformation
-		if p.Adaptive && t > 3
-			past_input = G_MIMO(past_input, past_response, desired, error_limit, p)
-		else
-			past_input = desired
-		end
-
-		xDef_p[t] = past_input[1]
-		yDef_p[t] = past_input[2]
-		zDef_p[t] = past_input[3]
-
-		# Control signal
-		u_x = xDef_p[t] + y[t] + z[t]
-		u_y = yDef_p[t] - x[t] - p.aa*y[t]
-		u_z = zDef_p[t] - p.ba - z[t]*(x[t]-p.ca)
-
-		# Model dynamics
-		x_p[t] = -y[t] - z[t] + u_x
-		y_p[t] = x[t] + p.ae*y[t] + u_y
-		z_p[t] = p.be + z[t]*(x[t]-p.ce) + u_z
-
-		past_response .= [x_p[t], y_p[t], z_p[t]]
-		past_responses[t, :] .= past_response
-
-		# Integrate
-		x[t+1] = x[t] + δt*x_p[t]
-		y[t+1] = y[t] + δt*y_p[t]
-		z[t+1] = z[t] + δt*z_p[t]
-
-		hint_x += δt*h_x
-		hint_y += δt*h_y
-		hint_z += δt*h_z
-
-		h2 = h_x*h_x + h_y*h_y + h_z*h_z
-
-		h_max_x = xN[max_index] - x[max_index]
-		h_max_y = yN[max_index] - y[max_index]
-		h_max_z = zN[max_index] - z[max_index]
-		h2_max = h_max_x*h_max_x + h_max_y*h_max_y + h_max_z*h_max_z
-
-		if h2 > h2_max
-			max_index = t
-		end
-	end
-
-	hx = xN[max_index] - x[max_index]
-	hy = yN[max_index] - y[max_index]
-	hz = zN[max_index] - z[max_index]
-
-	# Plot
-	if do_plot
-		# Nominal–Realized trajectories
-		fig = figure("nominal_realized_rossler")
-		title("Nominal vs Realized — Rössler")
-		subplot(311);
-		grid(true)
-		ylabel("X")
-		plot(time_mem[1:l], xN[1:l], "r")
-		plot(time_mem[1:l], x[1:l], "g--")
-
-		subplot(312);
-		grid(true)
-		ylabel("Y")
-		plot(time_mem[1:l], yN[1:l], "r")
-		plot(time_mem[1:l], y[1:l], "g--")
-
-		subplot(313);
-		grid(true)
-		ylabel("Z");
-		xlabel("t")
-		plot(time_mem[1:l], zN[1:l], "r")
-		plot(time_mem[1:l], z[1:l], "g--")
-
-		tight_layout()
-		if p.save_pdf
-			savefig("allplots_rossler.pdf")
-		end
-
-
-		# TRACKING ERROR PLOT
-		fig = figure("tracking_error_rossler")
-		subplot(311);
-		grid(true)
-		title("Tracking Errors")
-		ylabel("Xerr")
-		plot(time_mem[1:l], xN[1:l]-x[1:l], "r")
-
-		subplot(312);
-		grid(true)
-		ylabel("Yerr")
-		plot(time_mem[1:l], yN[1:l]-y[1:l], "r")
-
-		subplot(313);
-		grid(true)
-		ylabel("Zerr")
-		plot(time_mem[1:l], zN[1:l]-z[1:l], "r")
-		xlabel("t")
-
-		tight_layout()
-		if p.save_pdf
-			savefig("temp_rossler.pdf")
-			append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
-		end
-
-
-		# CONTROL SIGNALS
-		fig = figure("control_signal_rossler")
-		grid(true)
-		title("Control Signals")
-		xlabel("t");
-		ylabel("u")
-		plot(time_mem[1:l], xDef_p[1:l], "r", label = "u_x")
-		plot(time_mem[1:l], yDef_p[1:l], "g--", label = "u_y")
-		plot(time_mem[1:l], zDef_p[1:l], "b", label = "u_z")
-		legend()
-		tight_layout()
-
-		if p.save_pdf
-			savefig("temp_rossler.pdf")
-			append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
-		end
-
-
-		# PHASE PLOTS
-		fig = figure("phase_x_rossler")
-		grid(true)
-		title("Phase X")
-		xlabel("x");
-		ylabel("x_p")
-		plot(xN[1:l], xN_p[1:l], "r")
-		plot(x[1:l], x_p[1:l], "g--")
-		if p.save_pdf
-			savefig("temp_rossler.pdf")
-			append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
-		end
-
-		fig = figure("phase_y_rossler")
-		grid(true)
-		title("Phase Y")
-		xlabel("y");
-		ylabel("y_p")
-		plot(yN[1:l], yN_p[1:l], "r")
-		plot(y[1:l], y_p[1:l], "g--")
-		if p.save_pdf
-			savefig("temp_rossler.pdf")
-			append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
-		end
-
-		fig = figure("phase_z_rossler")
-		grid(true)
-		title("Phase Z")
-		xlabel("z");
-		ylabel("z_p")
-		plot(zN[1:l], zN_p[1:l], "r")
-		plot(z[1:l], z_p[1:l], "g--")
-		if p.save_pdf
-			savefig("temp_rossler.pdf")
-			append_pdf!("allplots_rossler.pdf", "temp_rossler.pdf", cleanup = true)
-		end
-
-
-		if p.save_pdf
-			try
-				ts = Dates.format(now(), "yyyy-mm-dd_HHMMSS")
-				isdir(p.pdf_dir) || mkpath(p.pdf_dir)
-				fname = joinpath(p.pdf_dir, "rossler_$(ts).pdf")
-				savefig(fname)
-			catch e
-				@warn "Could not save PDF: $e"
-			end
-		end
-
-		show()
-	end
-
-	return sqrt(hx*hx + hy*hy + hz*hz)
-end
-
-end # module
+end # module RosslerModule
