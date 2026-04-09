@@ -122,6 +122,7 @@ function run_duffing(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3);
         plot(qN[1:l], qN_p[1:l], color="red", label="nominal")
         plot(q[1:l], q_p[1:l], color="green", linestyle="--", label="actual")
         legend()
+        # show()
     end
 
     return maximum(abs.(h[1:l]))

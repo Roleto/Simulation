@@ -257,7 +257,7 @@ function run_rossler(x0=2.0 * sin(0.5 * 1e-3), y0=3.0 * sin(0.7 * 1e-3), z0=1.0 
     plot(z[1:l], z_p[1:l], color="green", linestyle="--", label="actual")
     legend()
 
-    show()
+    # show()
   end
 
   return sqrt(ex^2 + ey^2 + ez^2)
