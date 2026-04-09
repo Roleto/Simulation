@@ -1,8 +1,4 @@
 # julia --project=.
-# run_duffing(0.0, 0.0; do_plot=true)
-# run_vanderpol(0.0, 0.0; do_plot=true)
-# run_lorenz(0.0, 0.0, 0.0; do_plot=true)
-# run_rossler(0.0, 0.0, 0.0; do_plot=true)
 PyPlot.ioff()
 
 const SWEEP_RANGE = -60:2:60
@@ -46,7 +42,8 @@ end
 # err = run_duffing(88.0, 55.0; do_plot=true);
 # log_run("Duffing", "q0=88.0, qp0=55.0", err);
 
-# err = run_duffing(0.0, 1000.0; do_plot=true);
+# # err = run_duffing(0.0, 1000.0; do_plot=true);
+# # show()
 
 # q_vec, qp_vec, E = sweep_2d(run_duffing, SWEEP_RANGE, SWEEP_RANGE)
 # println("errors: ", E)
@@ -69,8 +66,8 @@ show()
 # log_run("VanDerPol", "q0=20.0, qp0=95.0", err);
 err = run_vanderpol(35.0, 15.0; do_plot=true);
 log_run("VanDerPol", "q0=35.0, qp0=15.0", err);
-run_vanderpol(35.0, 15.0; K_VSSM=2000, Λ=2, do_plot=true)
-show()
+# # run_vanderpol(35.0, 15.0; K_VSSM=2000, Λ=2, do_plot=true)
+# # show()
 # err = run_vanderpol(48.0, 33.0; do_plot=true);
 # log_run("VanDerPol", "q0=48.0, qp0=33.0", err);
 # err = run_vanderpol(60.0, 80.0; do_plot=true);
