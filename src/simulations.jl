@@ -21,7 +21,7 @@ if SAVE_PLOTS
 end
 
 # ── Duffing (10 runs) ────────────────────────────────────────
-err = run_duffing(; do_plot=true);
+# err = run_duffing(; do_plot=true);
 # log_run("Duffing", "q0=default, qp0=default", err);
 # err = run_duffing(0.0, 0.0; do_plot=true);
 # log_run("Duffing", "q0=0.0, qp0=0.0", err);
@@ -70,6 +70,7 @@ show()
 err = run_vanderpol(35.0, 15.0; do_plot=true);
 log_run("VanDerPol", "q0=35.0, qp0=15.0", err);
 run_vanderpol(35.0, 15.0; K_VSSM=2000, Λ=2, do_plot=true)
+show()
 # err = run_vanderpol(48.0, 33.0; do_plot=true);
 # log_run("VanDerPol", "q0=48.0, qp0=33.0", err);
 # err = run_vanderpol(60.0, 80.0; do_plot=true);
