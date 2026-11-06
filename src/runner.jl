@@ -41,7 +41,7 @@ function sweep_2d(run_fn, q_range, qp_range)
         for (j, qp0) in enumerate(qp_vec)
             errors[i, j] = run_fn(q0, qp0; do_plot=false)
             done += 1
-            print("\rProgress: $done / $total  (q0=$q0, qp0=$qp0)")
+            # print("\rProgress: $done / $total  (q0=$q0, qp0=$qp0)")
         end
     end
     println()

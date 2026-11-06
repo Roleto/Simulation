@@ -66,7 +66,7 @@ function run_vanderpol(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3)
             qDef_pp[i] = qDes_pp[i]
         end
 
-        u[i] = mₐ * qDef_pp[i]
+        u[i] = mₐ * qDef_pp[i] - μₐ * (1 - q[i]^2) * q_p[i] + ωₐ^2 * q[i] + αₐ * q[i]^3 + λₐ * q[i]^5
         q_pp[i] = (u[i] + μₑ * (1 - q[i]^2) * q_p[i] - ωₑ^2 * q[i] - αₑ * q[i]^3 - λₑ * q[i]^5) / mₑ
 
         q_p[i+1] = q_p[i] + δt * q_pp[i]

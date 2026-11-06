@@ -2,4 +2,5 @@
 PDFmerger = "3beb2ed1-af7d-458f-b727-6e9beb3586c0"
 Poppler_jll = "9c32591e-4766-534b-9725-b71a8799265b"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 Tk = "4225ea8a-3324-57e7-9ddc-5798a2cb9eab"

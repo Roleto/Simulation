@@ -22,7 +22,8 @@ function run_duffing(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3);
     αₐ=0.8,
     δₐ=0.1,
     βₐ=0.9,
-    do_plot=false)
+    do_plot=false,
+    metrics=false)
 
     l = LONG - 1
     t = zeros(LONG)
@@ -63,8 +64,8 @@ function run_duffing(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3);
             qDef_pp[i] = qDes_pp[i]
         end
 
-        u[i] = qDef_pp[i] - αₐ * q[i]
-        q_pp[i] = αₑ * q[i] + δₑ * q_p[i] - βₑ * q[i]^3 + u[i]
+        u[i] = qDef_pp[i] - αₐ * q[i] + δₐ * q_p[i] + βₐ * q[i]^3
+        q_pp[i] = αₑ * q[i] - δₑ * q_p[i] - βₑ * q[i]^3 + u[i]
 
         q_p[i+1] = q_p[i] + δt * q_pp[i]
         q[i+1] = q[i] + δt * q_p[i]
@@ -123,6 +124,12 @@ function run_duffing(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3);
         plot(q[1:l], q_p[1:l], color="green", linestyle="--", label="actual")
         legend()
         # show()
+    end
+    if metrics
+        r = (l-l÷5+1):l                      # utolsó 20%
+        ok = all(isfinite, q[1:l]) && maximum(abs, q[1:l]) < 1e3
+        return (rms=sqrt(sum(abs2, h[r]) / length(r)),
+            maxe=maximum(abs, h[1:l]), maxu=maximum(abs, u[1:l]), ok=ok)
     end
 
     return maximum(abs.(h[1:l]))

@@ -1,8 +1,10 @@
 # julia --project=.
+using PyPlot
 PyPlot.ioff()
 
-const SWEEP_RANGE = -60:2:60
-const SAVE_PLOTS = false   # set to false to skip saving
+const SWEEP_RANGE = -100:5:100
+const SWEEP_Z0 = 0.0          # fixed z0 used in 3-D sweeps
+const SAVE_PLOTS = true
 
 function log_run(model_name, ic_str, maxhiba)
     println("$model_name, $ic_str,   maxhiba = $maxhiba")
@@ -45,13 +47,14 @@ end
 # # err = run_duffing(0.0, 1000.0; do_plot=true);
 # # show()
 
-# q_vec, qp_vec, E = sweep_2d(run_duffing, SWEEP_RANGE, SWEEP_RANGE)
+q_vec, qp_vec, E = sweep_2d(run_duffing, SWEEP_RANGE, SWEEP_RANGE)
 # println("errors: ", E)
-# fig = plot_heatmap_2d(q_vec, qp_vec, E; title_str="Duffing – Error Heatmap")
+fig = plot_heatmap_2d(q_vec, qp_vec, E; title_str="Duffing – Error Heatmap")
 if SAVE_PLOTS
     fig.savefig(joinpath(@__DIR__, "..", "data", "Errors", "Duffing", "heatmap_duffing.png"), dpi=150, bbox_inches="tight")
 end
 show()
+
 
 # ── Van der Pol (10 runs) ────────────────────────────────────
 # err = run_vanderpol(; do_plot=true);
@@ -64,8 +67,8 @@ show()
 # log_run("VanDerPol", "q0=10.0, qp0=25.0", err);
 # err = run_vanderpol(20.0, 95.0; do_plot=true);
 # log_run("VanDerPol", "q0=20.0, qp0=95.0", err);
-err = run_vanderpol(35.0, 15.0; do_plot=true);
-log_run("VanDerPol", "q0=35.0, qp0=15.0", err);
+# err = run_vanderpol(35.0, 15.0; do_plot=true);
+# log_run("VanDerPol", "q0=35.0, qp0=15.0", err);
 # # run_vanderpol(35.0, 15.0; K_VSSM=2000, Λ=2, do_plot=true)
 # # show()
 # err = run_vanderpol(48.0, 33.0; do_plot=true);
@@ -84,7 +87,7 @@ if SAVE_PLOTS
 end
 show()
 
-# # ── Lorenz (10 runs, sweep fixes z0=0) ──────────────────────
+# ── Lorenz (10 runs, sweep fixes z0=0) ──────────────────────
 # err = run_lorenz(; do_plot=true);
 # log_run("Lorenz", "x0=default, y0=default, z0=default", err);
 # err = run_lorenz(1.0, 0.5, 0.2; do_plot=true);
@@ -105,14 +108,24 @@ show()
 # log_run("Lorenz", "x0=77.0, y0=62.0, z0=40.0", err);
 # err = run_lorenz(90.0, 45.0, 20.0; do_plot=true);
 # log_run("Lorenz", "x0=90.0, y0=45.0, z0=20.0", err);
-# q_vec, qp_vec, E = sweep_2d((x0, y0) -> run_lorenz(x0, y0, 0.0), SWEEP_RANGE, SWEEP_RANGE)
-# fig = plot_heatmap_2d(q_vec, qp_vec, E; title_str="Lorenz – Error Heatmap")
-# if SAVE_PLOTS
-#     fig.savefig(joinpath(@__DIR__, "..", "data", "Errors", "Lorenz", "heatmap_lorenz.png"), dpi=150, bbox_inches="tight")
-# end
-# show()
+q_vec, qp_vec, E = sweep_2d((x0, y0; do_plot=false) -> run_lorenz(x0, y0, SWEEP_Z0; do_plot=do_plot), SWEEP_RANGE, SWEEP_RANGE)
+fig = plot_heatmap_2d(q_vec, qp_vec, E; title_str="Lorenz – Error Heatmap (XY plane, z0=0)")
+if SAVE_PLOTS
+    fig.savefig(joinpath(@__DIR__, "..", "data", "Errors", "Lorenz", "heatmap_lorenz_xy.png"), dpi=150, bbox_inches="tight")
+end
+q_vec, qp_vec, E = sweep_2d((x0, y0; do_plot=false) -> run_lorenz(SWEEP_Z0, x0, y0; do_plot=do_plot), SWEEP_RANGE, SWEEP_RANGE)
+fig = plot_heatmap_2d(q_vec, qp_vec, E; title_str="Lorenz – Error Heatmap (YZ plane, x0=0)")
+if SAVE_PLOTS
+    fig.savefig(joinpath(@__DIR__, "..", "data", "Errors", "Lorenz", "heatmap_lorenz_yz.png"), dpi=150, bbox_inches="tight")
+end
+q_vec, qp_vec, E = sweep_2d((x0, y0; do_plot=false) -> run_lorenz(x0, SWEEP_Z0, y0; do_plot=do_plot), SWEEP_RANGE, SWEEP_RANGE)
+fig = plot_heatmap_2d(q_vec, qp_vec, E; title_str="Lorenz – Error Heatmap (XZ plane, y0=0)")
+if SAVE_PLOTS
+    fig.savefig(joinpath(@__DIR__, "..", "data", "Errors", "Lorenz", "heatmap_lorenz_xz.png"), dpi=150, bbox_inches="tight")
+end
+show()
 
-# # ── Rössler (10 runs, sweep fixes z0=0) ─────────────────────
+# ── Rössler (10 runs, sweep fixes z0=0) ─────────────────────
 # err = run_rossler(; do_plot=true);
 # log_run("Rossler", "x0=default, y0=default, z0=default", err);
 # err = run_rossler(0.5, 1.0, 0.0; do_plot=true);
@@ -133,12 +146,23 @@ show()
 # log_run("Rossler", "x0=72.0, y0=60.0, z0=45.0", err);
 # err = run_rossler(85.0, 50.0, 18.0; do_plot=true);
 # log_run("Rossler", "x0=85.0, y0=50.0, z0=18.0", err);
-# q_vec, qp_vec, E = sweep_2d((x0, y0) -> run_rossler(x0, y0, 0.0), SWEEP_RANGE, SWEEP_RANGE)
-# fig = plot_heatmap_2d(q_vec, qp_vec, E; title_str="Rössler – Error Heatmap")
-# if SAVE_PLOTS
-#     fig.savefig(joinpath(@__DIR__, "..", "data", "Errors", "Rossler", "heatmap_rossler.png"), dpi=150, bbox_inches="tight")
-# end
-# show()
+q_vec, qp_vec, E = sweep_2d((x0, y0; do_plot=false) -> run_rossler(x0, y0, SWEEP_Z0; do_plot=do_plot), SWEEP_RANGE, SWEEP_RANGE)
+fig = plot_heatmap_2d(q_vec, qp_vec, E; title_str="Rössler – Error Heatmap (XY plane, z0=0)")
+if SAVE_PLOTS
+    fig.savefig(joinpath(@__DIR__, "..", "data", "Errors", "Rossler", "heatmap_rossler_xy.png"), dpi=150, bbox_inches="tight")
+end
+q_vec, qp_vec, E = sweep_2d((x0, y0; do_plot=false) -> run_rossler(SWEEP_Z0, x0, y0; do_plot=do_plot), SWEEP_RANGE, SWEEP_RANGE)
+fig = plot_heatmap_2d(q_vec, qp_vec, E; title_str="Rössler – Error Heatmap (YZ plane, x0=0)")
+if SAVE_PLOTS
+    fig.savefig(joinpath(@__DIR__, "..", "data", "Errors", "Rossler", "heatmap_rossler_yz.png"), dpi=150, bbox_inches="tight")
+end
+q_vec, qp_vec, E = sweep_2d((x0, y0; do_plot=false) -> run_rossler(x0, SWEEP_Z0, y0; do_plot=do_plot), SWEEP_RANGE, SWEEP_RANGE)
+fig = plot_heatmap_2d(q_vec, qp_vec, E; title_str="Rössler – Error Heatmap (XZ plane, y0=0)")
+if SAVE_PLOTS
+    fig.savefig(joinpath(@__DIR__, "..", "data", "Errors", "Rossler", "heatmap_rossler_xz.png"), dpi=150, bbox_inches="tight")
+end
+show()
+# run_lorenz(48.0, 33.0, 12.0; K_VSSM=500, do_plot=true)
 
 PyPlot.ion()
 

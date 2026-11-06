@@ -1,0 +1,13 @@
+Futások: 207, divergált: 35
+Alapeset: RMS=5.463736985238144e-5 max|e|=0.0009999999583333338 max|u|=5.5025836493965725
+Legjobb 10 (RMS szerint):
+Λ=10, K_VSSM=1e+03 | RMS=9.97e-07 max|e|=0.001 max|u|=20.2
+Λ=10, K_VSSM=316 | RMS=1.04e-06 max|e|=0.001 max|u|=6.52
+Λ=10, K_VSSM=100 | RMS=1.18e-06 max|e|=0.001 max|u|=5.5
+Λ=10, K_VSSM=31.6 | RMS=1.62e-06 max|e|=0.001 max|u|=5.5
+Λ=10, K_VSSM=10 | RMS=3.01e-06 max|e|=0.001 max|u|=5.5
+Λ=4.64, K_VSSM=1e+03 | RMS=4.36e-06 max|e|=0.001 max|u|=9.4
+Λ=4.64, K_VSSM=316 | RMS=4.46e-06 max|e|=0.001 max|u|=5.5
+Λ=4.64, K_VSSM=100 | RMS=4.77e-06 max|e|=0.001 max|u|=5.5
+Λ=4.64, K_VSSM=31.6 | RMS=5.75e-06 max|e|=0.001 max|u|=5.5
+Λ=10, K_VSSM=3.16 | RMS=7.15e-06 max|e|=0.001 max|u|=5.5
