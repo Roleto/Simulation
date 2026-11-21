@@ -118,6 +118,12 @@ function run_rossler(x0=2.0 * sin(0.5 * 1e-3), y0=3.0 * sin(0.7 * 1e-3), z0=1.0 
     y[i+1] = y[i] + δt * y_p[i]
     z[i+1] = z[i] + δt * z_p[i]
 
+    # korai kilépés: numerikus robbanás vagy állapot-explózió
+    if !isfinite(x[i+1]) || !isfinite(y[i+1]) || !isfinite(z[i+1]) ||
+       abs(x[i+1]) > 1e4  || abs(y[i+1]) > 1e4  || abs(z[i+1]) > 1e4
+        return Inf
+    end
+
     hint_x += δt * h_x
     hint_y += δt * h_y
     hint_z += δt * h_z

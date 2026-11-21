@@ -118,6 +118,12 @@ function run_lorenz(x0=0.0, y0=0.0, z0=0.0;
         y[i+1] = y[i] + δt * y_p[i]
         z[i+1] = z[i] + δt * z_p[i]
 
+        # korai kilépés: numerikus robbanás vagy állapot-explózió
+        if !isfinite(x[i+1]) || !isfinite(y[i+1]) || !isfinite(z[i+1]) ||
+           abs(x[i+1]) > 1e4  || abs(y[i+1]) > 1e4  || abs(z[i+1]) > 1e4
+            return Inf
+        end
+
         hint_x += δt * h_x
         hint_y += δt * h_y
         hint_z += δt * h_z

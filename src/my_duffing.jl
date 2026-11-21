@@ -23,7 +23,8 @@ function run_duffing(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3);
     δₐ=0.1,
     βₐ=0.9,
     do_plot=false,
-    metrics=false)
+    metrics=false,
+    tail=0.2)
 
     l = LONG - 1
     t = zeros(LONG)
@@ -126,10 +127,11 @@ function run_duffing(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3);
         # show()
     end
     if metrics
-        r = (l-l÷5+1):l                      # utolsó 20%
-        ok = all(isfinite, q[1:l]) && maximum(abs, q[1:l]) < 1e3
-        return (rms=sqrt(sum(abs2, h[r]) / length(r)),
-            maxe=maximum(abs, h[1:l]), maxu=maximum(abs, u[1:l]), ok=ok)
+        r = (l-round(Int, tail * l)+1):l     # állandósult ablak: utolsó `tail` rész
+        ok = all(isfinite, q[1:l]) && maximum(abs, q[1:l]) < 1e3 && maximum(abs, u[1:l]) < 100
+        return (rms_ss=sqrt(sum(abs2, h[r]) / length(r)), maxe_ss=maximum(abs, h[r]),
+            rms_all=sqrt(sum(abs2, h[1:l]) / l), maxe_all=maximum(abs, h[1:l]),
+            maxu=maximum(abs, u[1:l]), ok=ok)
     end
 
     return maximum(abs.(h[1:l]))
