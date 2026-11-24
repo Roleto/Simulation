@@ -93,12 +93,16 @@ end
 #
 # 2-D heatmap: x axis = initial velocity, y axis = initial position, colour = maxhiba
 # ─────────────────────────────────────────
-function plot_heatmap_2d(q_vec, qp_vec, errors; title_str="Error Heatmap")
+function plot_heatmap_2d(q_vec, qp_vec, errors; title_str="Error Heatmap", logscale=false, label="maxhiba",
+                         xlab="q̇₀  (initial velocity)", ylab="q₀  (initial position)")
+    cm = get_cmap("viridis")
+    cm.set_bad("lightgray")                       # NaN / divergált cella = szürke
+    Z = logscale ? log10.(errors) : errors
     fig, ax = subplots()
-    pc = ax.pcolormesh(qp_vec, q_vec, errors, cmap="viridis", shading="auto")
-    fig.colorbar(pc, ax=ax, label="maxhiba")
-    ax.set_xlabel("q̇₀  (initial velocity)")
-    ax.set_ylabel("q₀  (initial position)")
+    pc = ax.pcolormesh(qp_vec, q_vec, Z, cmap=cm, shading="auto")
+    fig.colorbar(pc, ax=ax, label=logscale ? "log10($label)" : label)
+    ax.set_xlabel(xlab)
+    ax.set_ylabel(ylab)
     ax.set_title(title_str)
     return fig
 end

@@ -1,5 +1,6 @@
 module DuffingModule
 using PyPlot
+using Random
 
 export run_duffing
 
@@ -24,7 +25,18 @@ function run_duffing(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3);
     βₐ=0.9,
     do_plot=false,
     metrics=false,
-    tail=0.2)
+    tail=0.2,
+    tag="actual",        # jelmagyarázat-felirat → több futás egy ábrán összehasonlítható
+    acc_clip=true,       # gyorsulás ábra: az eleji RFPT-tüske ne nyomja össze a skálát
+    mismatch=nothing,    # robusztusság: ε szám → a becsült paraméterek pₐ = (1+ε)·pₑ (nothing = a fenti αₐ, δₐ, βₐ)
+    noise=0.0,           # robusztusság: mérési zaj szórása (q, q̇ és a mért q̈ is zajos)
+    seed=1)              # a zaj véletlenszám-magja (ismételhető futás)
+
+    if mismatch !== nothing
+        αₐ, δₐ, βₐ = (1 + mismatch) .* (αₑ, δₑ, βₑ)
+    end
+    rng = MersenneTwister(seed)
+    nz() = noise > 0 ? noise * randn(rng) : 0.0    # noise = 0 → pontosan a régi viselkedés
 
     l = LONG - 1
     t = zeros(LONG)
@@ -38,6 +50,7 @@ function run_duffing(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3);
     qDes_pp = zeros(LONG)
     qDef_pp = zeros(LONG)
     u = zeros(LONG)
+    S_arr = zeros(LONG)      # csúszófelület (csak ábrához)
 
     q[1] = q0
     q_p[1] = qp0
@@ -49,38 +62,48 @@ function run_duffing(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3);
         qN_p[i] = Amp * ω * cos(ω * t[i])
         qN_pp[i] = -Amp * ω^2 * sin(ω * t[i])
 
+        # mért állapot (zajjal) – ezt látja a szabályozó; a valódi hiba h[i] marad az ábrákhoz
+        qm = q[i] + nz()
+        qpm = q_p[i] + nz()
         h[i] = qN[i] - q[i]
-        h_p = qN_p[i] - q_p[i]
+        hm = qN[i] - qm
+        h_p = qN_p[i] - qpm
 
         if Robust == 1
-            S = Λ^2 * hint + 2 * Λ * h[i] + h_p
-            qDes_pp[i] = K_VSSM * tanh(S / w) + Λ^2 * h[i] + 2 * Λ * h_p + qN_pp[i]
+            S = Λ^2 * hint + 2 * Λ * hm + h_p
+            S_arr[i] = S
+            qDes_pp[i] = K_VSSM * tanh(S / w) + Λ^2 * hm + 2 * Λ * h_p + qN_pp[i]
         else
-            qDes_pp[i] = qN_pp[i] + Λ^3 * hint + 3 * Λ^2 * h[i] + 3 * Λ * h_p
+            qDes_pp[i] = qN_pp[i] + Λ^3 * hint + 3 * Λ^2 * hm + 3 * Λ * h_p
         end
 
         if Adaptive == 1 && i > 3
-            qDef_pp[i] = (qDef_pp[i-1] + K) * (1 + B * tanh(A * (q_pp[i-1] - qDes_pp[i]))) - K
+            qDef_pp[i] = (qDef_pp[i-1] + K) * (1 + B * tanh(A * (q_pp[i-1] + nz() - qDes_pp[i]))) - K
         else
             qDef_pp[i] = qDes_pp[i]
         end
 
-        u[i] = qDef_pp[i] - αₐ * q[i] + δₐ * q_p[i] + βₐ * q[i]^3
+        u[i] = qDef_pp[i] - αₐ * qm + δₐ * qpm + βₐ * qm^3
         q_pp[i] = αₑ * q[i] - δₑ * q_p[i] - βₑ * q[i]^3 + u[i]
 
         q_p[i+1] = q_p[i] + δt * q_pp[i]
         q[i+1] = q[i] + δt * q_p[i]
-        hint = hint + δt * h[i]
+        hint = hint + δt * hm
     end
 
     if do_plot
+        # több futás egy ábrán: a nominális csak egyszer kerül a jelmagyarázatba,
+        # egyedi tag esetén a szín automatikus (különböző futások különböző színnel)
+        nl() = isempty(gca().lines) ? "nominal" : "_nolegend_"
+        c = tag == "actual" ? "green" : nothing
+
         figure("Duffing - Trajectory")
         grid(true)
         title("Duffing – Trajectory Tracking")
         xlabel("time")
         ylabel("position")
-        plot(t[1:l], qN[1:l], color="red", label="nominal")
-        plot(t[1:l], q[1:l], color="green", linestyle="--", label="actual")
+        plot(t[1:l], qN[1:l], color="red", label=nl())
+        plot(t[1:l], q[1:l], color=c, linestyle="--", label=tag)
         legend()
 
         figure("Duffing - Velocity")
@@ -88,8 +111,8 @@ function run_duffing(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3);
         title("Duffing – Velocity")
         xlabel("time")
         ylabel("velocity")
-        plot(t[1:l], qN_p[1:l], color="red", label="nominal")
-        plot(t[1:l], q_p[1:l], color="green", linestyle="--", label="actual")
+        plot(t[1:l], qN_p[1:l], color="red", label=nl())
+        plot(t[1:l], q_p[1:l], color=c, linestyle="--", label=tag)
         legend()
 
         figure("Duffing - Acceleration")
@@ -97,9 +120,14 @@ function run_duffing(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3);
         title("Duffing – Accelerations")
         xlabel("time")
         ylabel("acceleration")
-        plot(t[1:l], qN_pp[1:l], color="red", label="nominal")
-        plot(t[1:l], q_pp[1:l], color="green", linestyle="--", label="actual")
-        plot(t[1:l], qDes_pp[1:l], color="blue", linestyle="-.", label="desired")
+        plot(t[1:l], qN_pp[1:l], color="red", label=nl())
+        plot(t[1:l], q_pp[1:l], color=c, linestyle="--", label=tag)
+        plot(t[1:l], qDes_pp[1:l], linestyle="-.", label="desired ($tag)")
+        if acc_clip      # skála az eleji tranziens (első 5%) nélküli értékekből
+            r0 = max(4, round(Int, 0.05 * l)):l
+            lim = 1.2 * maximum(abs, vcat(qN_pp[r0], q_pp[r0], qDes_pp[r0]))
+            isfinite(lim) && lim > 0 && ylim(-lim, lim)
+        end
         legend()
 
         figure("Duffing - Error")
@@ -107,24 +135,55 @@ function run_duffing(q0=2.0 * sin(0.5 * 1e-3), qp0=2.0 * 0.5 * cos(0.5 * 1e-3);
         title("Duffing – Tracking Error")
         xlabel("time")
         ylabel("error")
-        plot(t[1:l], h[1:l], color="red")
+        axhline(0, color="black", linewidth=0.8)      # cél: h = 0
+        plot(t[1:l], h[1:l], color=(tag == "actual" ? "red" : nothing), label=tag)
+        legend()
+
+        figure("Duffing - Error (log)")
+        grid(true, which="both")
+        title("Duffing – |Tracking Error| (log)")
+        xlabel("time")
+        ylabel("|error|")
+        semilogy(t[1:l], abs.(h[1:l]) .+ 1e-16, color=(tag == "actual" ? "red" : nothing), label=tag)
+        legend()
 
         figure("Duffing - Control Signal")
         grid(true)
         title("Duffing – Control Signal")
         xlabel("time")
         ylabel("signal")
-        plot(t[1:l], u[1:l], color="red")
+        # ideális vezérlés: ami a PONTOS modellel a nominális pályán tartaná a rendszert
+        uN = qN_pp[1:l] .- αₑ .* qN[1:l] .+ δₑ .* qN_p[1:l] .+ βₑ .* qN[1:l] .^ 3
+        plot(t[1:l], uN, color="black", linewidth=0.8, label=(isempty(gca().lines) ? "nominal (ideális)" : "_nolegend_"))
+        plot(t[1:l], u[1:l], color=(tag == "actual" ? "red" : nothing), linestyle="--", label=tag)
+        legend()
+
+        figure("Duffing - Sliding Surface")
+        grid(true)
+        title("Duffing – Sliding Surface S(t)")
+        xlabel("time")
+        ylabel("S")
+        axhline(0, color="black", linewidth=0.8)
+        plot(t[1:l], S_arr[1:l], color=(tag == "actual" ? "red" : nothing), label=tag)
+        legend()
+
+        figure("Duffing - Deformed Acceleration")
+        grid(true)
+        title("Duffing – RFPT: desired vs deformed")
+        xlabel("time")
+        ylabel("acceleration")
+        plot(t[1:l], qDes_pp[1:l], linestyle="-.", label="desired ($tag)")
+        plot(t[1:l], qDef_pp[1:l], label="deformed ($tag)")
+        legend()
 
         figure("Duffing - Phase Space")
         grid(true)
         title("Duffing – Phase Space")
         xlabel("position")
         ylabel("velocity")
-        plot(qN[1:l], qN_p[1:l], color="red", label="nominal")
-        plot(q[1:l], q_p[1:l], color="green", linestyle="--", label="actual")
+        plot(qN[1:l], qN_p[1:l], color="red", label=nl())
+        plot(q[1:l], q_p[1:l], color=c, linestyle="--", label=tag)
         legend()
-        # show()
     end
     if metrics
         r = (l-round(Int, tail * l)+1):l     # állandósult ablak: utolsó `tail` rész
